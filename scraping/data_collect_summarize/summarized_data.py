@@ -51,22 +51,22 @@ def chunk_text(text, max_length=3000):
 
     return chunks
 
-# Group all raw articles by company
-company_articles = defaultdict(list)
-for doc in collection.find():
-    raw_content = doc.get("raw_content", "").strip()
-    company = clean_company_name(doc.get("company", ""))
-    if raw_content and company:
-        company_articles[company].append(raw_content)
+def summarize_company(company_name):
+    company_key = clean_company_name(company_name)
+    company_articles = []
+    for doc in collection.find({"company": {"$regex": f"^{company_key}", "$options": "i"}}):
+        raw_content = doc.get("raw_content", "").strip()
+        if raw_content:
+            company_articles.append(raw_content)
 
-# Summarize each company
-for company, articles in company_articles.items():
-    combined_text = "\n\n---\n\n".join(articles)
+    if not company_articles:
+        print(f"No articles found for {company_name}")
+        return
 
-    print(f"\n📊 Summarizing {len(articles)} articles for: {company}")
+    combined_text = "\n\n---\n\n".join(company_articles)
+    print(f"\n📊 Summarizing {len(company_articles)} articles for: {company_key}")
 
     try:
-        # You may chunk if content is too long (Gemini 2.0 Flash can handle ~20,000 tokens)
         if len(combined_text.split()) > 10000:
             chunks = chunk_text(combined_text, max_length=3000)
             chunk_summaries = []
@@ -74,30 +74,25 @@ for company, articles in company_articles.items():
                 print(f"🧩 Processing chunk {idx + 1} of {len(chunks)}")
                 summary = chain.invoke({
                     "markdown": chunk,
-                    "company_name": company
+                    "company_name": company_key
                 }).strip()
                 chunk_summaries.append(summary)
-
-            # Now combine the chunk summaries into one final summary
             final_summary = chain.invoke({
                 "markdown": "\n\n".join(chunk_summaries),
-                "company_name": company
+                "company_name": company_key
             }).strip()
-
         else:
-            # One-shot summary for shorter input
             final_summary = chain.invoke({
                 "markdown": combined_text,
-                "company_name": company
+                "company_name": company_key
             }).strip()
 
-        # Save result to MongoDB
         summary_collection.insert_one({
-            "company": company,
+            "company": company_key,
             "summary": final_summary,
             "summarized_at": datetime.now(timezone.utc)
         })
-        print(f"✅ Summary saved for {company}")
+        print(f"✅ Summary saved for {company_key}")
 
     except Exception as e:
-        print(f"❌ Error summarizing {company}: {e}")
+        print(f"❌ Error summarizing {company_key}: {e}")

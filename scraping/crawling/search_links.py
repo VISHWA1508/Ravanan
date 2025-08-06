@@ -24,8 +24,31 @@ instruction_prompt = ChatPromptTemplate.from_messages([
   "source_type": "news",
   "info_depth": "deep",
   "language": "English",
-  "date_range": "last 7 days"
-}}"""
+}}
+    Use the following methodology when creating your query:
+1. Revenue Splitting by Industry:
+   - Extract revenue data from annual reports and investor presentations.
+   - Break down by industry segments.
+   - Calculate each segment's revenue contribution.
+   - Track changes over the last 3–5 years.
+   - Compare the company's segment diversification to its peers.
+
+2. Top Products Revenue Growth Analysis:
+   - Identify major product lines or services.
+   - Analyze year-over-year revenue growth.
+   - Determine lifecycle maturity of each product.
+   - Compare growth trends with competitors.
+   - Evaluate product contribution to total revenue.
+   - Highlight recent product launches or discontinuations.
+
+3. Domestic vs International Business Distribution:
+   - Segment revenue geographically (India vs foreign).
+   - Observe changes in regional revenue share.
+   - Detect exposure to foreign markets and expansion efforts.
+   - Analyze risks and opportunities in each region.
+   - Identify revenue from exports vs local sales.
+   - Compare the company's regional business mix to industry norms.
+   """
     ),
     ("human", "{user_prompt}")
 ])
@@ -73,8 +96,15 @@ def google_search(query, max_pages=5):
         all_results.extend(results.get("organic_results", []))
     return all_results
 
+def build_user_prompt(company_name):
+    return (
+        f"Provide in-depth news and analysis on {company_name} including revenue split, product growth, "
+        "and domestic vs international business for the latest quarter results."
+    )
+
 # Final wrapper
-def full_search(user_prompt):
+def full_search(company_name):
+    user_prompt = build_user_prompt(company_name)
     print("\n🔍 Step 1: Convert prompt to query...")
     instruction = get_scraping_instruction(user_prompt)
     query = instruction["query"]
@@ -99,7 +129,6 @@ def full_search(user_prompt):
 
     return unique_links
 
-def run_search():
-    user_prompt = "In-depth news and analysis on Ultratech Cement Q1 FY26 results"
-    return full_search(user_prompt)
+def run_search(company_name):
+    return full_search(company_name)
 
