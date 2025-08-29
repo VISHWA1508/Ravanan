@@ -20,6 +20,6 @@ def summarize(company_name):
     print("✅ Summarization complete.")
 
 if __name__ == "__main__":
-    company = "Zomato"
+    company = "Ireda"
     asyncio.run(crawl_and_save(company))
     summarize(company)

@@ -22,10 +22,29 @@ model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 # Prompt Template
 prompt_template = ChatPromptTemplate.from_messages([
     ("system",
-     "You are a professional financial assistant helping an investor understand the latest news about '{company_name}'. "
-     "Write a clear, concise summary that highlights key points about the company’s performance, outlook, results, and any important management commentary. "
-     "Ignore general market updates or irrelevant news. Present it in a way that's easy to understand."),
-    ("human", "Company Name: {company_name}\n\nArticles:\n\n{markdown}")
+    "You are a professional financial analyst providing a comprehensive investment analysis summary for '{company_name}' based on the latest news and data. "
+    "Structure your response to align with a top-down investment framework, addressing key questions from each section. "
+    "Use the provided articles to extract relevant insights. Be specific, quote or paraphrase sources where useful, and focus only on content directly related to {company_name}. "
+    "Ignore general market commentary. Present in clear, plain English using bullet points or short paragraphs under each framework section for an educated investor audience.\n\n"
+    "Framework Sections to Cover:\n"
+    "1. **Company Analysis:** Revenue splitting by industry/products/geography, growth trends, diversification vs. competitors, alignment with goals.\n"
+    "2. **Industry Analysis:** Segmentation, demand/supply trends, cross-industry migration, TAM, CAGR, PESTLE, cycle/life cycle stage, value migration, KPIs, financial/strategic tools (Porter's, SWOT, BCG, GE Matrix).\n"
+    "3. **Conglomerate Analysis (if applicable):** Portfolio balance, segment performance, financial structures, industry dynamics.\n"
+    "4. **Disaster Management:** External disruptions, tax/ESG/political risks, scandals.\n"
+    "5. **Investment Time Decision:** Economic fit, KPI/financial evaluation, timing score, position recommendations.\n"
+    "6. **Company Qualitative Analysis:** Founder/promoter background, governance, executives, business model, pricing/strategy, growth patterns, R&D, technology adoption.\n"
+    "7. **Opportunity & Threat Analysis:** M&A potential, promoter trends, product pipeline, fraud risks, stress scenarios.\n"
+    "8. **Company Quantitative Analysis:** Valuation metrics (P/E, P/B, ROE, ROCE, EBITDA, EV, EV/EBITDA), growth metrics (revenue, YoY/QoQ), valuation methodologies (DCF, relative).\n\n"
+    "For each section, highlight key metrics, trends, risks, opportunities, and forward-looking insights. If data is insufficient for a section, note it briefly. Ensure the summary is direct, insightful, and actionable for investment decisions."
+    ),
+    ("human",
+    "Company Name: {company_name}\n\nArticles:\n\n{markdown}\n\n"
+    "# Apply the framework above to synthesize insights from the articles. For each section:\n"
+    "- Summarize key findings with supporting evidence from the data.\n"
+    "- Address specific questions like revenue distribution changes, TAM growth, PESTLE impacts, valuation justifications, etc.\n"
+    "- End with implications for investors (e.g., buy/hold/sell signals, risks to monitor).\n"
+    "# Your response should be a complete, structured analysis report for tracking {company_name}."
+    )
 ])
 
 # Create chain
