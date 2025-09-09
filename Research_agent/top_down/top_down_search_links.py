@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
-from serpapi import GoogleSearch
+from serpapi.google_search import GoogleSearch  # Updated import
 
 # Load environment variables
 load_dotenv()

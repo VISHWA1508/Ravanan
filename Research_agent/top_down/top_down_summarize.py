@@ -1,11 +1,16 @@
-from pymongo import MongoClient
+import logging
+import os
+from datetime import datetime, timezone
+import pandas as pd
+
 from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
-from datetime import datetime, timezone
-from collections import defaultdict
-import os
+from pymongo import MongoClient
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables
 load_dotenv()
@@ -14,184 +19,367 @@ load_dotenv()
 client = MongoClient("mongodb://localhost:27017/")
 db = client["ravanan"]
 collection = db["raw_data"]
+financial_collection = db["financial_data"]
 summary_collection = db["top_down_summarization"]
 
 # Gemini 2.0 Flash model
 model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
-# Prompt Template
+# Top-Down Summarization Prompt Template (enhanced for financial data)
 prompt_template = ChatPromptTemplate.from_messages([
     ("system",
-    "You are a senior financial analyst providing a comprehensive investment analysis summary for '{company_name}' based on extensive news data and market intelligence. "
+    "You are a senior financial analyst providing a comprehensive investment analysis summary for '{company_name}' based on extensive news data, market intelligence, and financial data. "
     "Your analysis must follow a rigorous top-down investment framework that addresses critical investment questions across 10 key analytical dimensions. "
     "Structure your response as a professional investment research report with clear sections, actionable insights, and evidence-based conclusions. "
-    "Use the provided articles to extract relevant data points, quote specific information where valuable, and focus exclusively on content directly related to {company_name}. "
+    "Use the provided articles AND financial data to extract relevant data points, calculate key ratios and metrics, quote specific information where valuable, and focus exclusively on content directly related to {company_name}. "
+    "When financial data is available, use actual numbers to calculate ratios, growth rates, and valuation metrics to support your analysis. "
     "Ignore general market commentary unless it specifically impacts the target company. Present findings in clear, analytical language suitable for institutional investors and portfolio managers.\n\n"
     
     "**ANALYTICAL FRAMEWORK - 10 CORE DIMENSIONS:**\n\n"
     
     "## 1. COMPANY REVENUE ARCHITECTURE ANALYSIS\n"
-    "**Industry Revenue Segmentation:** Analyze revenue distribution across industry verticals. What percentage comes from each sector? How has this mix evolved over 3-5 years? Is the company strategically diversifying or becoming more concentrated? Compare diversification strategy to key competitors.\n"
-    "**Product Portfolio Performance:** Identify top-performing products by growth rate. Which products are in growth, maturity, or decline phases? What is the revenue contribution from products launched in the last 2-3 years versus legacy offerings? How does new product performance compare to market benchmarks?\n"
-    "**Geographic Revenue Distribution:** Break down domestic versus international revenue. Which regions show highest growth rates? How has geographic mix shifted over time? What are the key risks (political, economic, currency) in major international markets? Does international expansion align with stated strategic goals?\n\n"
+    "**Industry Revenue Segmentation:** Analyze revenue distribution across industry verticals using actual financial data where available. Calculate revenue growth rates from quarterly data. What percentage comes from each sector? How has this mix evolved? Compare to competitors.\n"
+    "**Product Portfolio Performance:** Use actual revenue figures to identify top-performing segments. Calculate quarter-over-quarter and year-over-year growth rates. Which products show strongest growth trajectories?\n"
+    "**Geographic Revenue Distribution:** Break down domestic versus international revenue using available data. Calculate growth rates by geography where possible.\n\n"
     
     "## 2. INDUSTRY STRUCTURAL DYNAMICS ANALYSIS\n"
-    "**Market Segmentation & Positioning:** Map industry segments and the company's position within each. Which segments are experiencing growth, stability, or decline? Are there underserved segments representing opportunities? How concentrated or fragmented is each segment?\n"
-    "**Supply-Demand Equilibrium:** Assess current demand versus supply conditions. Is industry demand growing faster than supply capacity? What are primary demand drivers? How cyclical is demand? What leading indicators predict demand shifts?\n"
-    "**Cross-Industry Migration Trends:** Identify companies entering from adjacent industries or existing players diversifying. What capabilities facilitate successful industry boundary crossing? How are customer needs evolving to redefine industry boundaries?\n"
-    "**Total Addressable Market (TAM) Analysis:** Quantify current TAM size and company's addressable portion. What is the 5-10 year TAM growth projection and key expansion/contraction factors? How does company's current market share compare to realistic TAM capture potential?\n"
-    "**Industry Growth Dynamics:** Calculate industry CAGR over past 5 years. Which segments grow faster than average? Is growth accelerating or decelerating? What factors drive high-performing segments? How sustainable is current trajectory?\n"
-    "**PESTLE Impact Assessment:** Identify which Political, Economic, Social, Technological, Legal, Environmental factors most significantly impact the industry. What upcoming changes might affect industry dynamics? How do these factors vary across geographic markets?\n"
-    "**Industry Life Cycle Positioning:** Determine current stage (Introduction/Growth/Maturity/Decline). How long has industry been in this stage? Are different segments at different stages? What strategic implications arise from current positioning?\n"
-    "**Value Migration Patterns:** Track how economic value shifts within the industry value chain. Where is profit concentration increasing/decreasing? Which business models gain/lose economic value? How might emerging technologies redistribute future value?\n"
-    "**Performance Benchmarking:** Define 5-7 critical industry KPIs and compare company performance to competitors. Which KPIs most strongly correlate with financial performance? What operational metrics serve as leading indicators?\n"
-    "**Strategic Framework Application:** Apply Porter's 5 Forces, SWOT Analysis, BCG Matrix, and GE-9 Box Matrix to evaluate industry attractiveness and competitive positioning.\n\n"
+    "**Market Segmentation & Positioning:** Map industry segments and company's position. Use market cap, revenue data to assess relative positioning.\n"
+    "**Supply-Demand Equilibrium:** Assess using capacity utilization data, pricing trends, and margin analysis from financial statements.\n"
+    "**Total Addressable Market (TAM) Analysis:** Calculate current market share using company revenue versus total industry size. Use growth rates to project TAM expansion.\n"
+    "**Industry Growth Dynamics:** Calculate actual industry CAGR using company and peer financial data. Compare company growth to industry benchmarks.\n"
+    "**Performance Benchmarking:** Compare key financial ratios (ROE, ROCE, EBITDA margins, etc.) to industry averages using actual data.\n\n"
     
     "## 3. CONGLOMERATE PORTFOLIO ANALYSIS (if applicable)\n"
-    "**Portfolio Balance Assessment:** For multi-industry companies, evaluate balance across different sectors using weightage-based scoring. Which segments contribute most to overall performance? How does resource allocation align with segment performance and potential?\n"
-    "**Segment Financial Structure Analysis:** Compare financial structures across segments using vertical analysis. Which segments demonstrate most efficient cost structures? Do any segments benefit from conglomerate synergies?\n"
-    "**Cross-Segment Industry Dynamics:** How diverse are industry dynamics across the portfolio? Which segments face most favorable/challenging conditions? Are there opportunities for cross-pollination of best practices?\n\n"
+    "**Portfolio Balance Assessment:** Use revenue and profit contribution data to evaluate segment performance. Calculate segment-wise margins and returns where possible.\n"
+    "**Segment Financial Structure Analysis:** Compare cost structures, asset utilization, and profitability across segments using actual financial data.\n\n"
     
     "## 4. DISASTER RISK & RESILIENCE ANALYSIS\n"
-    "**External Disruption Vulnerability:** Assess exposure to geopolitical conflicts, natural disasters, pandemics, climate change. How has the industry historically responded to major external shocks? What structural changes resulted from previous disruptions?\n"
-    "**Tax Policy Sensitivity:** Analyze impact of potential tax rate changes on industry profitability. Which companies have most tax-efficient structures? What tax policy changes are under consideration?\n"
-    "**ESG Risk & Opportunity Matrix:** Identify material ESG factors affecting financial performance. How are regulatory requirements evolving? Which companies lead/lag on critical ESG metrics? What ESG-related risks could impact industry economics?\n"
-    "**Political Risk Exposure:** Evaluate sensitivity to political leadership changes. Which political factors historically impacted industry performance most? What upcoming political events could affect operations?\n"
-    "**Governance & Scandal Risk:** Assess structural factors enabling potential misconduct. Are there industry characteristics creating vulnerability to scandals? What early warning signs indicate emerging governance problems?\n\n"
+    "**External Disruption Vulnerability:** Assess using debt-to-equity ratios, interest coverage ratios, and cash flow stability from financial data.\n"
+    "**Tax Policy Sensitivity:** Calculate effective tax rates and analyze tax expense trends from financial statements.\n"
+    "**ESG Risk Assessment:** Use actual spending on ESG initiatives, compliance costs from financial data where available.\n\n"
     
     "## 5. INVESTMENT TIMING OPTIMIZATION\n"
-    "**Economic Cycle Alignment:** Determine how well industry aligns with current/projected economic conditions. For cyclical industries, assess current cycle position. Are disaster risks adequately reflected in valuations?\n"
-    "**Performance Momentum Indicators:** What do leading KPIs indicate about future financial performance? Are there visible inflection points in key metrics? Do operational metrics support or contradict financial trends?\n"
-    "**Integrated Timing Score:** Develop comprehensive timing assessment weighing Economic Fit, Disaster Risk, and Life Cycle factors. What changes would significantly improve/worsen timing score?\n"
-    "**Position Recommendations:** Provide specific short-term (0-12 months) and long-term (1-5 years) position guidance. What catalysts would trigger position changes? What risk management parameters should accompany recommendations?\n\n"
+    "**Economic Cycle Alignment:** Use cyclical metrics like working capital changes, inventory turnover from financial data.\n"
+    "**Performance Momentum Indicators:** Calculate momentum metrics using quarterly growth rates, margin trends, and return patterns.\n"
+    "**Valuation Timing:** Use current P/E, P/B, EV/EBITDA ratios compared to historical ranges and peer benchmarks.\n\n"
     
     "## 6. MANAGEMENT & STRATEGIC QUALITY ASSESSMENT\n"
-    "**Leadership Pedigree Analysis:** Evaluate founder's background and ongoing influence on strategic direction. How has founder's vision been institutionalized? If departed, how smooth was transition?\n"
-    "**Promoter Holdings & Governance:** Analyze promoter shareholding and pledging patterns over time. What do these patterns suggest about insider confidence and corporate control? How aligned are promoter interests with minority shareholders?\n"
-    "**Corporate Governance Standards:** Assess board independence, effectiveness, and shareholder rights protection. How transparent is company communication? What is compliance and ethical track record?\n"
-    "**Executive Team Capability:** Evaluate C-level backgrounds, track records, and team dynamics. Do executives have relevant experience? How well does team complement each other's skills?\n"
-    "**Business Model Sustainability:** Analyze distinctive aspects and competitive advantages embedded in business model. How sustainable is model against industry changes? What disruptions could threaten it?\n"
-    "**Strategic Execution Excellence:** Evaluate pricing strategy, strategic fit, growth pattern effectiveness. How clearly articulated is strategy? Does company have capabilities to execute? How adaptable is strategy to changing conditions?\n"
-    "**Innovation & Technology Leadership:** Assess R&D investment trends and effectiveness. Is company technology leader, fast follower, or laggard? How well integrated is technology strategy with business strategy?\n\n"
+    "**Leadership Quality:** Analyze management effectiveness using ROE, ROCE trends and capital allocation efficiency from financial data.\n"
+    "**Corporate Governance:** Assess using related party transactions, auditor fees, and governance costs from financial statements.\n"
+    "**Strategic Execution:** Measure using actual performance against guidance, capital deployment efficiency ratios.\n\n"
     
     "## 7. OPPORTUNITY & THREAT ASSESSMENT\n"
-    "**M&A Potential & Strategy:** Evaluate likelihood of company being acquirer or target. What types of acquisitions align with strategy? What would be likely premium in takeover scenario?\n"
-    "**Promoter Activity Signals:** Track recent changes in promoter holdings and pledging. What might motivate these changes? Do patterns suggest insider confidence or concern?\n"
-    "**Innovation Pipeline Impact:** Analyze upcoming product launches and their strategic significance. What is potential revenue contribution? How does pipeline compare to competitor innovation efforts?\n"
-    "**Fraud & Scandal Vulnerability:** Identify business model characteristics creating fraud risk. Are there financial red flags? How robust are governance and control mechanisms?\n"
-    "**Stress Test Resilience:** Develop adverse scenarios testing business model robustness. How would company perform under severe industry downturns? What mitigating actions could management take in crisis?\n\n"
+    "**Financial Health:** Use debt ratios, interest coverage, current ratios, and cash flow metrics from actual financial data.\n"
+    "**Growth Investment:** Analyze capex trends, R&D spending, and investment intensity from financial statements.\n"
+    "**Competitive Position:** Use margin analysis, market share data, and profitability metrics to assess competitive standing.\n\n"
     
     "## 8. QUANTITATIVE VALUATION FRAMEWORK\n"
-    "**Core Valuation Metrics Analysis:** Evaluate P/E, P/B, ROE, ROCE, EBITDA, EV, EV/EBITDA ratios. How do current levels compare to historical ranges and peer benchmarks? What growth rates are implied by current valuations?\n"
-    "**Growth Trajectory Assessment:** Analyze revenue growth patterns (YoY, QoQ trends). What are primary growth drivers? How sustainable are current growth rates? Is growth accelerating or decelerating?\n"
-    "**Valuation Methodology Application:** Apply DCF and relative valuation approaches. What are key value drivers in DCF model? How sensitive is valuation to assumption changes? How does relative valuation compare to peers?\n"
-    "**Financial Quality Indicators:** Assess earnings quality, cash conversion, capital allocation effectiveness. How does company perform on industry-specific financial KPIs?\n\n"
+    "**Core Valuation Metrics:** Calculate P/E, P/B, ROE, ROCE, EBITDA margins, EV/EBITDA using actual financial data. Compare to historical ranges and peer benchmarks.\n"
+    "**Growth Analysis:** Calculate revenue, EBITDA, and profit growth rates from quarterly data. Analyze sustainability of growth trends.\n"
+    "**Profitability Analysis:** Calculate gross margins, EBITDA margins, operating margins, and net margins. Analyze trends and compare to industry.\n"
+    "**Return Metrics:** Calculate ROE, ROCE, ROIC using actual balance sheet and income statement data.\n"
+    "**Cash Flow Analysis:** Analyze operating cash flow, free cash flow, and cash conversion metrics from financial statements.\n\n"
     
     "## 9. LONG-TERM STRATEGIC LOGIC\n"
-    "**Sustainable Competitive Advantages:** Identify and evaluate durability of competitive moats. Which advantages are strengthening or weakening over time? How defensible are these advantages against disruption?\n"
-    "**Strategic Vision Alignment:** Assess how well long-term strategy aligns with industry evolution, technological trends, and market opportunities. Is company positioning for future value creation or defending legacy positions?\n"
-    "**Capital Allocation Excellence:** Evaluate historical and planned capital allocation decisions. Are investments generating returns above cost of capital? How does capital allocation support strategic priorities?\n\n"
+    "**Competitive Advantages:** Use margin stability, market share data, and financial performance consistency to assess moat strength.\n"
+    "**Capital Allocation:** Analyze capex efficiency, acquisition returns, dividend policy using actual financial data.\n"
+    "**Innovation Investment:** Track R&D spending trends and innovation-driven revenue growth from financial statements.\n\n"
     
     "## 10. INVESTMENT DECISION SYNTHESIS\n"
-    "**Risk-Adjusted Return Potential:** Synthesize quantitative and qualitative factors into expected return scenarios. What is the risk-adjusted return potential over different time horizons?\n"
-    "**Catalyst Identification:** Identify specific near-term and medium-term catalysts that could drive outperformance. What events or developments would most significantly impact valuation?\n"
-    "**Investment Recommendation:** Provide clear BUY/HOLD/SELL recommendation with specific price targets and time horizons. What position sizing is appropriate given conviction level and risk assessment?\n"
-    "**Monitoring Framework:** Establish key metrics and triggers for ongoing position management. What changes would warrant reassessment of investment thesis?\n\n"
+    "**Risk-Adjusted Returns:** Calculate Sharpe ratios, beta, and volatility metrics using historical financial performance.\n"
+    "**Valuation Assessment:** Synthesize multiple valuation approaches using actual financial metrics.\n"
+    "**Investment Recommendation:** Provide clear recommendation supported by financial analysis and calculated target prices.\n\n"
     
     "**OUTPUT REQUIREMENTS:**\n"
-    "- Structure as professional investment research report with executive summary\n"
-    "- Include specific metrics, percentages, and financial data where available\n"
-    "- Provide clear investment recommendation with rationale\n"
-    "- Identify key risks and opportunity factors\n"
-    "- Establish monitoring framework for ongoing assessment\n"
-    "- Ensure analysis is actionable for portfolio management decisions\n\n"
+    "- Use actual financial figures to calculate all ratios and metrics\n"
+    "- Include specific percentages, growth rates, and financial data points\n"
+    "- Support qualitative assessments with quantitative evidence\n"
+    "- Calculate valuation multiples and compare to benchmarks\n"
+    "- Provide clear investment thesis with supporting financial analysis\n\n"
     
-    "Your analysis should demonstrate deep understanding of both quantitative metrics and qualitative factors, providing institutional-quality investment research that supports data-driven investment decisions."
+    "Your analysis should demonstrate integration of both qualitative market intelligence and quantitative financial analysis, providing institutional-quality investment research supported by concrete financial metrics."
     ),
     ("human",
-    "Company Name: {company_name}\n\nNews Articles and Market Data:\n\n{markdown}\n\n"
+    "Company Name: {company_name}\n\nNews Articles and Market Data:\n\n{articles}\n\n"
+    "Financial Data:\n\n{financial_data}\n\n"
     "Using the comprehensive 10-dimension framework above, analyze the provided information about {company_name}. "
     "For each analytical dimension:\n"
+    "- Use actual financial data to calculate specific metrics, ratios, and growth rates\n"
     "- Extract and synthesize relevant insights from the articles\n"
-    "- Provide specific data points, percentages, and metrics where available\n"
-    "- Address the key questions outlined in each section\n"
-    "- Connect findings across different analytical dimensions\n"
-    "- Identify gaps where additional information would strengthen the analysis\n\n"
+    "- Support qualitative analysis with quantitative financial evidence\n"
+    "- Address the key questions outlined in each section using both data sources\n"
+    "- Calculate industry-standard financial ratios and valuation multiples\n\n"
     "Conclude with:\n"
-    "1. **Executive Summary** - Key investment highlights and concerns\n"
-    "2. **Investment Recommendation** - Clear BUY/HOLD/SELL with price target if possible\n"
-    "3. **Key Risk Factors** - Primary downside risks to monitor\n"
-    "4. **Upside Catalysts** - Potential positive drivers for outperformance\n"
-    "5. **Monitoring Framework** - Critical metrics and events to track\n\n"
-    "Deliver a comprehensive investment analysis report that provides actionable insights for institutional investment decisions regarding {company_name}."
+    "1. **Executive Summary** - Key investment highlights with supporting financial metrics\n"
+    "2. **Investment Recommendation** - Clear BUY/HOLD/SELL with calculated price targets and valuation rationale\n"
+    "3. **Key Risk Factors** - Quantified risks with financial impact assessment\n"
+    "4. **Upside Catalysts** - Potential positive drivers with financial impact estimates\n"
+    "5. **Monitoring Framework** - Specific financial metrics and thresholds to track\n\n"
+    "Deliver a comprehensive investment analysis report that integrates financial data analysis with market intelligence for {company_name}."
     )
 ])
 
 # Create chain
 chain = prompt_template | model | StrOutputParser()
 
-# Clean company name helper
 def clean_company_name(name):
     return name.lower().replace(" full search", "").strip()
 
-# Optional: Break large text if too long
 def chunk_text(text, max_length=3000):
     words = text.split()
-    chunks, current_chunk = [], []
+    return [" ".join(words[i:i + max_length]) for i in range(0, len(words), max_length)]
 
-    for word in words:
-        current_chunk.append(word)
-        if len(current_chunk) >= max_length:
-            chunks.append(" ".join(current_chunk))
-            current_chunk = []
-
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
-
-    return chunks
+def format_financial_data_for_top_down(financial_doc):
+    """Format financial data specifically for top-down analysis with focus on valuation and industry metrics."""
+    if not financial_doc or 'financial_data' not in financial_doc:
+        return "No financial data available."
+    
+    financial_data = financial_doc['financial_data']
+    formatted_sections = []
+    
+    # Format Company Info with Valuation Focus
+    if 'company_info' in financial_data:
+        formatted_sections.append("## VALUATION & MARKET METRICS")
+        info = financial_data['company_info']
+        
+        # Valuation multiples
+        valuation_metrics = {
+            'Market Cap': 'marketCap',
+            'Enterprise Value': 'enterpriseValue', 
+            'P/E Ratio (Trailing)': 'trailingPE',
+            'P/E Ratio (Forward)': 'forwardPE',
+            'Price-to-Book': 'priceToBook',
+            'EV/Revenue': 'enterpriseToRevenue',
+            'EV/EBITDA': 'enterpriseToEbitda',
+            'PEG Ratio': 'pegRatio'
+        }
+        
+        for label, key in valuation_metrics.items():
+            if key in info and info[key] is not None and info[key] != 0:
+                value = info[key]
+                if key in ['marketCap', 'enterpriseValue']:
+                    formatted_sections.append(f"**{label}**: ₹{value:,.0f}")
+                else:
+                    formatted_sections.append(f"**{label}**: {value:.2f}")
+        
+        # Profitability metrics
+        formatted_sections.append("\n## PROFITABILITY METRICS")
+        profit_metrics = {
+            'Gross Margins': 'grossMargins',
+            'Operating Margins': 'operatingMargins', 
+            'Profit Margins': 'profitMargins',
+            'EBITDA Margins': 'ebitdaMargins',
+            'Return on Assets': 'returnOnAssets',
+            'Return on Equity': 'returnOnEquity'
+        }
+        
+        for label, key in profit_metrics.items():
+            if key in info and info[key] is not None:
+                value = info[key]
+                formatted_sections.append(f"**{label}**: {value:.2%}")
+        
+        # Financial health metrics
+        formatted_sections.append("\n## FINANCIAL HEALTH METRICS")
+        health_metrics = {
+            'Current Ratio': 'currentRatio',
+            'Quick Ratio': 'quickRatio',
+            'Debt-to-Equity': 'debtToEquity',
+            'Total Debt': 'totalDebt',
+            'Total Cash': 'totalCash',
+            'Free Cash Flow': 'freeCashflow'
+        }
+        
+        for label, key in health_metrics.items():
+            if key in info and info[key] is not None and info[key] != 0:
+                value = info[key]
+                if key in ['totalDebt', 'totalCash', 'freeCashflow']:
+                    formatted_sections.append(f"**{label}**: ₹{value:,.0f}")
+                else:
+                    formatted_sections.append(f"**{label}**: {value:.2f}")
+    
+    # Format Quarterly Financials with Growth Analysis
+    if 'quarterly_financials' in financial_data:
+        formatted_sections.append("\n\n## QUARTERLY FINANCIAL PERFORMANCE")
+        qf = financial_data['quarterly_financials']
+        quarters = sorted(list(qf.keys()), reverse=True)
+        
+        if len(quarters) >= 2:
+            formatted_sections.append(f"**Analysis Period**: {quarters[-1]} to {quarters[0]} ({len(quarters)} quarters)")
+            
+            # Key financial metrics with growth analysis
+            key_metrics = [
+                'Total Revenue', 'Gross Profit', 'EBITDA', 'Operating Income', 
+                'Net Income', 'Basic EPS', 'Cost Of Revenue', 'Operating Expense'
+            ]
+            
+            for metric in key_metrics:
+                if metric in qf.get(quarters[0], {}):
+                    formatted_sections.append(f"\n**{metric} Analysis:**")
+                    
+                    # Show values for each quarter
+                    values = []
+                    for quarter in quarters:
+                        if quarter in qf and metric in qf[quarter]:
+                            value = qf[quarter][metric]
+                            if isinstance(value, dict) and '$numberDouble' in value:
+                                value = float(value['$numberDouble'])
+                            if value and str(value) != 'NaN':
+                                values.append((quarter, value))
+                                formatted_sections.append(f"  - {quarter}: ₹{value:,.0f}")
+                    
+                    # Calculate growth rates
+                    if len(values) >= 2:
+                        latest_val = values[0][1]
+                        previous_val = values[1][1]
+                        if previous_val != 0:
+                            qoq_growth = ((latest_val - previous_val) / abs(previous_val)) * 100
+                            formatted_sections.append(f"  - **QoQ Growth**: {qoq_growth:.1f}%")
+                        
+                        if len(values) >= 4:  # YoY comparison if available
+                            year_ago_val = values[3][1] if len(values) > 3 else values[-1][1]
+                            if year_ago_val != 0:
+                                yoy_growth = ((latest_val - year_ago_val) / abs(year_ago_val)) * 100
+                                formatted_sections.append(f"  - **YoY Growth**: {yoy_growth:.1f}%")
+            
+            # Calculate key ratios
+            formatted_sections.append("\n## CALCULATED FINANCIAL RATIOS")
+            if len(quarters) >= 1:
+                latest_quarter = quarters[0]
+                latest_data = qf[latest_quarter]
+                
+                # Calculate margins
+                revenue = latest_data.get('Total Revenue', {})
+                gross_profit = latest_data.get('Gross Profit', {})
+                ebitda = latest_data.get('EBITDA', {})
+                operating_income = latest_data.get('Operating Income', {})
+                net_income = latest_data.get('Net Income', {})
+                
+                if isinstance(revenue, dict):
+                    revenue = float(revenue['$numberDouble'])
+                if isinstance(gross_profit, dict):
+                    gross_profit = float(gross_profit['$numberDouble'])
+                if isinstance(ebitda, dict):
+                    ebitda = float(ebitda['$numberDouble'])
+                if isinstance(operating_income, dict):
+                    operating_income = float(operating_income['$numberDouble'])
+                if isinstance(net_income, dict):
+                    net_income = float(net_income['$numberDouble'])
+                
+                if revenue and revenue != 0 and str(revenue) != 'NaN':
+                    if gross_profit and str(gross_profit) != 'NaN':
+                        gross_margin = (gross_profit / revenue) * 100
+                        formatted_sections.append(f"**Gross Margin**: {gross_margin:.1f}%")
+                    
+                    if ebitda and str(ebitda) != 'NaN':
+                        ebitda_margin = (ebitda / revenue) * 100
+                        formatted_sections.append(f"**EBITDA Margin**: {ebitda_margin:.1f}%")
+                    
+                    if operating_income and str(operating_income) != 'NaN':
+                        operating_margin = (operating_income / revenue) * 100
+                        formatted_sections.append(f"**Operating Margin**: {operating_margin:.1f}%")
+                    
+                    if net_income and str(net_income) != 'NaN':
+                        net_margin = (net_income / revenue) * 100
+                        formatted_sections.append(f"**Net Margin**: {net_margin:.1f}%")
+    
+    # Add balance sheet and cash flow summaries
+    if 'balance_sheet' in financial_data:
+        formatted_sections.append("\n\n## BALANCE SHEET DATA")
+        formatted_sections.append("Quarterly balance sheet data available for detailed analysis.")
+    
+    if 'cash_flow' in financial_data:
+        formatted_sections.append("\n\n## CASH FLOW DATA")
+        formatted_sections.append("Quarterly cash flow statements available for liquidity and cash generation analysis.")
+    
+    if 'historical_prices' in financial_data:
+        formatted_sections.append("\n\n## STOCK PERFORMANCE DATA")
+        formatted_sections.append("1-year historical price data available for technical and momentum analysis.")
+    
+    return "\n".join(formatted_sections)
 
 def summarize_company(company_name):
     company_key = clean_company_name(company_name)
-    company_articles = []
-    for doc in collection.find({"company": {"$regex": f"^{company_key}", "$options": "i"}}):
-        raw_content = doc.get("raw_content", "").strip()
-        if raw_content:
-            company_articles.append(raw_content)
+    logging.info(f"\n📊 Starting top-down summarization for: {company_key}")
+
+    # Fetch scraped articles
+    company_articles = [doc.get("raw_content", "").strip() for doc in collection.find({"company": {"$regex": f"^{company_key}", "$options": "i"}}) if doc.get("raw_content")]
+
+    # Fetch and format financial data
+    financial_doc = financial_collection.find_one({"company": company_key})
+    financial_text = format_financial_data_for_top_down(financial_doc)
+    
+    if financial_doc:
+        logging.info("✅ Successfully incorporated and formatted financial data for top-down analysis")
+    else:
+        logging.warning("⚠️  No financial data found")
 
     if not company_articles:
-        print(f"No articles found for {company_name}")
-        return
+        logging.warning(f"No articles found for {company_name}")
+        if not financial_doc:
+            logging.error("No data available for analysis")
+            return
+        # If we have financial data but no articles, we can still proceed
+        company_articles = ["No news articles available for analysis."]
 
-    combined_text = "\n\n---\n\n".join(company_articles)
-    print(f"\n📊 Summarizing {len(company_articles)} articles for: {company_key}")
+    articles_text = "\n\n---\n\n".join(company_articles)
 
     try:
-        if len(combined_text.split()) > 10000:
-            chunks = chunk_text(combined_text, max_length=3000)
+        # Combine articles and financial data
+        chunks = chunk_text(articles_text + "\n\n" + financial_text)
+        if len(chunks) > 1:
             chunk_summaries = []
             for idx, chunk in enumerate(chunks):
-                print(f"🧩 Processing chunk {idx + 1} of {len(chunks)}")
+                logging.info(f"🧩 Processing chunk {idx + 1} of {len(chunks)}")
+                
+                # Split chunk back for proper formatting
+                if "## VALUATION & MARKET METRICS" in chunk:
+                    # This chunk contains financial data
+                    chunk_articles = articles_text
+                    chunk_financial = financial_text
+                else:
+                    # This chunk is primarily articles
+                    chunk_articles = chunk
+                    chunk_financial = "See other chunks for detailed financial analysis."
+                
                 summary = chain.invoke({
-                    "markdown": chunk,
+                    "articles": chunk_articles, 
+                    "financial_data": chunk_financial,
                     "company_name": company_key
                 }).strip()
                 chunk_summaries.append(summary)
+            
+            # Final synthesis
             final_summary = chain.invoke({
-                "markdown": "\n\n".join(chunk_summaries),
+                "articles": "\n\n".join(chunk_summaries), 
+                "financial_data": "See individual analyses above for integrated financial insights.",
                 "company_name": company_key
             }).strip()
         else:
             final_summary = chain.invoke({
-                "markdown": combined_text,
+                "articles": articles_text, 
+                "financial_data": financial_text,
                 "company_name": company_key
             }).strip()
 
-        summary_collection.insert_one({
+        # Save with metadata
+        summary_doc = {
             "company": company_key,
             "summary": final_summary,
+            "has_financial_data": financial_doc is not None,
+            "financial_data_status": "included" if financial_doc else "not_available",
+            "articles_count": len([a for a in company_articles if a.strip()]),
             "summarized_at": datetime.now(timezone.utc)
-        })
-        print(f"✅ Summary saved for {company_key}")
-
+        }
+        
+        summary_collection.update_one(
+            {"company": company_key},
+            {"$set": summary_doc},
+            upsert=True
+        )
+        
+        logging.info(f"✅ Top-down summary saved for {company_key}")
+        logging.info(f"📈 Financial data included: {financial_doc is not None}")
+        
     except Exception as e:
-        print(f"❌ Error summarizing {company_key}: {e}")
+        logging.error(f"❌ Error summarizing {company_key}: {e}")
+        raise  # Re-raise to help with debugging
