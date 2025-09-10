@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 from datetime import datetime, timezone
 import pandas as pd
 
@@ -15,6 +16,33 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Load environment variables
 load_dotenv()
 
+def get_random_api_key(key_name):
+    """Get a random API key from an array stored in .env file."""
+    try:
+        key_str = os.getenv(key_name)
+        if not key_str:
+            raise ValueError(f"No {key_name} found in .env file")
+        
+        # Remove brackets and split by comma
+        key_str = key_str.strip('[]')
+        keys = [k.strip() for k in key_str.split(',') if k.strip()]
+        
+        if not keys:
+            raise ValueError(f"No valid {key_name} keys found in .env file")
+        
+        return random.choice(keys)
+    except Exception as e:
+        logging.error(f"❌ Error getting random API key for {key_name}: {e}")
+        raise
+
+# Get random Google API key
+try:
+    GOOGLE_API_KEY = get_random_api_key("GOOGLE_API_KEY")
+    logging.info("✅ Successfully loaded random Google API key")
+except Exception as e:
+    logging.error(f"❌ Error loading Google API key: {e}")
+    raise
+
 # MongoDB connection
 client = MongoClient("mongodb://localhost:27017/")
 db = client["ravanan"]
@@ -22,8 +50,11 @@ collection = db["raw_data"]
 financial_collection = db["financial_data"]
 summary_collection = db["bottom_up_summarization"]
 
-# Gemini 2.0 Flash model
-model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
+# Gemini 2.0 Flash model with random API key
+model = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash",
+    google_api_key=GOOGLE_API_KEY
+)
 
 def safe_extract_value(value):
     """Safely extract numerical values from various MongoDB formats."""

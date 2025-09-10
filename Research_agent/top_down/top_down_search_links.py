@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import random
 from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
@@ -9,10 +10,39 @@ from serpapi.google_search import GoogleSearch  # Updated import
 
 # Load environment variables
 load_dotenv()
-SERP_API_KEY = os.getenv("SERPAPI_API_KEY")
+
+def get_random_api_key(key_name):
+    """Get a random API key from an array stored in .env file."""
+    try:
+        key_str = os.getenv(key_name)
+        if not key_str:
+            raise ValueError(f"No {key_name} found in .env file")
+        
+        # Remove brackets and split by comma
+        key_str = key_str.strip('[]')
+        keys = [k.strip() for k in key_str.split(',') if k.strip()]
+        
+        if not keys:
+            raise ValueError(f"No valid {key_name} keys found in .env file")
+        
+        return random.choice(keys)
+    except Exception as e:
+        print(f"Error getting random API key for {key_name}: {e}")
+        raise
+
+try:
+    SERP_API_KEY = get_random_api_key("SERPAPI_API_KEY")
+    GOOGLE_API_KEY = get_random_api_key("GOOGLE_API_KEY")
+    print("✅ Successfully loaded random API keys")
+except Exception as e:
+    print(f"❌ Error loading API keys: {e}")
+    raise
     
-# Initialize Groq LLM
-llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
+# Initialize Gemini LLM with random API key
+llm = ChatGoogleGenerativeAI(
+    model="gemini-2.0-flash",
+    google_api_key=GOOGLE_API_KEY
+)
 
 # LLM prompt template
 instruction_prompt = ChatPromptTemplate.from_messages([
