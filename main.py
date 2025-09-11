@@ -19,8 +19,10 @@ import random
 from scraping.crawling.crawl import process_link
 from Research_agent.top_down.top_down_search_links import run_search as top_down_search
 from Research_agent.bottom_up.bottom_up_search import run_search as bottom_up_search
+from Research_agent.canslim.canslim_search import run_search as canslim_search
 from Research_agent.top_down.top_down_summarize import summarize_company as top_down_summarize
 from Research_agent.bottom_up.bottom_up_summarize import summarize_company as bottom_up_summarize
+from Research_agent.canslim.canslim_summarize import summarize_company as canslim_summarize
 from scraping.data_collect_summarize.raw_data import save_raw_data
 
 # Setup logging
@@ -442,13 +444,15 @@ async def parallel_search(company_name, ticker=None):
         logging.info("\n🔍 Starting parallel searches...")
         logging.info("├─ Running top-down analysis")
         logging.info("└─ Running bottom-up analysis")
+        logging.info("└─ Running canslim analysis")
 
         # Run both searches in parallel
         top_down_links = top_down_search(company_name)
         bottom_up_links = bottom_up_search(company_name)
+        canslim_links = canslim_search(company_name)
 
         # Combine and deduplicate links
-        all_links = list(set(top_down_links + bottom_up_links))
+        all_links = list(set(top_down_links + bottom_up_links + canslim_links))
         logging.info(f"\n🌐 Found {len(all_links)} unique links")
 
         # Process all links concurrently
@@ -482,7 +486,9 @@ def parallel_summarize(company_name):
         top_down_summarize(company_name)
         logging.info("└─ Running bottom-up summarization")
         bottom_up_summarize(company_name)
-        logging.info("✅ Both summaries complete")
+        logging.info("└─ Running canslim summarization")
+        canslim_summarize(company_name)
+        logging.info("✅ All summaries complete")
 
         # Optional: Preview summaries from DB
         try:
@@ -505,8 +511,8 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # Company and ticker configuration
-    company = "Kotak Mahindra Bank"
-    ticker = "KOTAKBANK.NS"  # NSE ticker for Kotak Mahindra Bank
+    company = "Mazagon Dock Shipbuilders Limited"
+    ticker = "MAZAGOND.NS"  # NSE ticker for Mazagon Dock Shipbuilders Limited
 
     # Alternative examples for different companies:
     # company = "infosys"
