@@ -4,19 +4,22 @@ def display_data_summary(company_name):
         logging.info(f"\n📋 Data Collection Summary for {company_name.upper()}")
     except Exception as e:
         logging.error(f"Error displaying data summary: {e}")
+
 import logging
 import asyncio
 import os
 import sys
 import json
+import time  # Added import for time.sleep
 from dotenv import load_dotenv
 import yfinance as yf
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 import random
- 
-from scraping.crawling.crawl import process_link
+
+# Import the optimized crawler
+from scraping.crawling.crawl import ResourceOptimizedCrawler, process_links_batch
 from Research_agent.top_down.top_down_search_links import run_search as top_down_search
 from Research_agent.bottom_up.bottom_up_search import run_search as bottom_up_search
 from Research_agent.canslim.canslim_search import run_search as canslim_search
@@ -25,8 +28,15 @@ from Research_agent.bottom_up.bottom_up_summarize import summarize_company as bo
 from Research_agent.canslim.canslim_summarize import summarize_company as canslim_summarize
 from scraping.data_collect_summarize.raw_data import save_raw_data
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Setup logging with more efficient format
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('research_pipeline.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
 # Load environment variables
 load_dotenv()
@@ -38,7 +48,6 @@ def get_random_api_key(key_name):
         if not key_str:
             raise ValueError(f"No {key_name} found in .env file")
         
-        # Remove brackets and split by comma
         key_str = key_str.strip('[]')
         keys = [k.strip() for k in key_str.split(',') if k.strip()]
         
@@ -65,6 +74,7 @@ db = client["ravanan"]
 financial_collection = db["financial_data"]
 
 # ====================== REVENUE SOURCE ANALYSIS FUNCTIONS ======================
+# [Keep all your existing revenue analysis functions unchanged]
 
 def safe_to_dict(obj):
     """Convert yfinance / pandas objects safely to JSON-serializable dict/list"""
@@ -85,6 +95,7 @@ def safe_to_dict(obj):
         return {str(k): safe_to_dict(v) for k, v in obj.to_dict().items()}
     return obj if isinstance(obj, (str, int, float, bool)) else str(obj)
 
+# [Keep all your existing revenue analysis functions - extract_revenue_sources, etc.]
 def extract_revenue_sources(financials_df, company_info=None):
     """Extract and categorize different revenue sources from financial statements"""
     revenue_breakdown = {}
@@ -244,6 +255,7 @@ def analyze_revenue_diversification(revenue_sources):
     return diversification_analysis
 
 # ====================== ENHANCED FINANCIAL DATA FUNCTION ======================
+# [Keep your existing fetch_and_save_financial_data function unchanged]
 
 def fetch_and_save_financial_data(company_name, ticker):
     """Fetch and save financial data with comprehensive revenue source analysis."""
@@ -389,7 +401,7 @@ def fetch_and_save_financial_data(company_name, ticker):
                 "company": company_name.lower(),
                 "ticker": ticker,
                 "financial_data": financial_data,
-                "fetched_at": datetime.utcnow(),
+                "fetched_at": datetime.now(timezone.utc),
                 "status": "success"
             }
             
@@ -434,75 +446,140 @@ def fetch_and_save_financial_data(company_name, ticker):
             upsert=True
         )
         return False
-    
 
-# ====================== EXISTING FUNCTIONS (UNCHANGED) ======================
+# ====================== OPTIMIZED PIPELINE FUNCTIONS ======================
 
-async def parallel_search(company_name, ticker=None):
-    """Run both top-down and bottom-up searches concurrently and fetch financial data."""
+async def optimized_search_and_crawl(company_name, ticker=None, max_concurrent_crawls=2):
+    """
+    Optimized version that runs searches sequentially but crawls with controlled concurrency.
+    This reduces system load significantly.
+    """
     try:
-        logging.info("\n🔍 Starting parallel searches...")
-        logging.info("├─ Running top-down analysis")
-        logging.info("└─ Running bottom-up analysis")
-        logging.info("└─ Running canslim analysis")
-
-        # Run both searches in parallel
+        logging.info(f"\n🔍 Starting optimized search pipeline for {company_name}...")
+        
+        # Step 1: Run searches sequentially (not parallel) to reduce API load
+        logging.info("├─ Running top-down search...")
         top_down_links = top_down_search(company_name)
+        await asyncio.sleep(1)  # Brief pause between searches
+        
+        logging.info("├─ Running bottom-up search...")
         bottom_up_links = bottom_up_search(company_name)
+        await asyncio.sleep(1)
+        
+        logging.info("└─ Running CANSLIM search...")
         canslim_links = canslim_search(company_name)
-
-        # Combine and deduplicate links
+        
+        # Step 2: Combine and deduplicate links
         all_links = list(set(top_down_links + bottom_up_links + canslim_links))
-        logging.info(f"\n🌐 Found {len(all_links)} unique links")
-
-        # Process all links concurrently
+        logging.info(f"\n🌐 Found {len(all_links)} unique links to process")
+        
+        # Step 3: Process links with optimized crawler (controlled concurrency)
         if all_links:
-            tasks = [process_link(link, company_name) for link in all_links]
-            await asyncio.gather(*tasks)
-            logging.info("✅ Crawling and saving raw data complete")
+            url_company_pairs = [(link, company_name) for link in all_links]
+            
+            # Use optimized batch processing with low concurrency
+            results = await process_links_batch(
+                url_company_pairs, 
+                max_concurrent=max_concurrent_crawls
+            )
+            
+            logging.info(f"✅ Crawling Results:")
+            logging.info(f"   📊 Successful: {results['successful']}")
+            logging.info(f"   ❌ Failed: {results['failed']}")
+            logging.info(f"   📈 Success Rate: {results['success_rate']:.1%}")
+            logging.info(f"   ⏱️ Total Time: {results['elapsed_time']:.1f}s")
         else:
             logging.warning("⚠️ No links found to process")
-
-        # Fetch and save financial data using yfinance WITH REVENUE SOURCE ANALYSIS
+        
+        # Step 4: Fetch financial data (run separately to avoid resource conflicts)
         if ticker:
-            logging.info("\n💼 Starting comprehensive financial data extraction...")
-            success = fetch_and_save_financial_data(company_name, ticker)
+            logging.info(f"\n💼 Fetching financial data for {ticker}...")
+            await asyncio.sleep(2)  # Give system time to cool down
+            
+            # Run financial data fetch in executor to prevent blocking
+            success = await asyncio.get_event_loop().run_in_executor(
+                None, fetch_and_save_financial_data, company_name, ticker
+            )
+            
             if success:
-                logging.info("🎯 Comprehensive financial data extraction completed successfully!")
+                logging.info("🎯 Financial data extraction completed successfully!")
             else:
-                logging.warning("⚠️  Comprehensive financial data fetching failed, but continuing with summarization")
+                logging.warning("⚠️ Financial data fetching failed, but continuing...")
         else:
             logging.info("ℹ️ No ticker provided, skipping financial data fetch")
             
     except Exception as e:
-        logging.error(f"❌ Error in parallel_search: {e}")
+        logging.error(f"❌ Error in optimized search and crawl: {e}")
         # Don't stop the program, just log the error
 
-def parallel_summarize(company_name):
-    """Generate both top-down and bottom-up summaries."""
+def sequential_summarize(company_name):
+    """
+    Sequential summarization to prevent resource conflicts.
+    Runs one summarization at a time with pauses.
+    """
     try:
-        logging.info("\n📊 Generating summaries...")
-        logging.info("├─ Running top-down summarization")
+        logging.info(f"\n📊 Starting sequential summarization for {company_name}...")
+        
+        # Run summarizations one by one with breaks
+        logging.info("├─ Running top-down summarization...")
         top_down_summarize(company_name)
-        logging.info("└─ Running bottom-up summarization")
+        time.sleep(2)  # Give system time between operations (using time.sleep instead of await)
+        
+        logging.info("├─ Running bottom-up summarization...")
         bottom_up_summarize(company_name)
-        logging.info("└─ Running canslim summarization")
+        time.sleep(2)  # Using time.sleep for synchronous delay
+        
+        logging.info("└─ Running CANSLIM summarization...")
         canslim_summarize(company_name)
-        logging.info("✅ All summaries complete")
-
-        # Optional: Preview summaries from DB
+        
+        logging.info("✅ All summarizations completed successfully")
+        
+        # Preview results
         try:
-            top_summary = db["top_down_summarization"].find_one({"company": company_name.lower()})
-            bottom_summary = db["bottom_up_summarization"].find_one({"company": company_name.lower()})
-            if top_summary:
-                logging.info(f"Top-Down Summary Preview: {top_summary['summary'][:200]}...")
-            if bottom_summary:
-                logging.info(f"Bottom-Up Summary Preview: {bottom_summary['summary'][:200]}...")
+            collections = [
+                ("top_down_summarization", "Top-Down"),
+                ("bottom_up_summarization", "Bottom-Up"),
+                ("canslim_summarization", "CANSLIM")
+            ]
+            
+            for collection_name, analysis_type in collections:
+                summary = db[collection_name].find_one({"company": company_name.lower()})
+                if summary:
+                    logging.info(f"✅ {analysis_type} Summary: Generated successfully")
+                else:
+                    logging.warning(f"⚠️ {analysis_type} Summary: Not found in database")
+                    
         except Exception as e:
-            logging.error(f"❌ Error previewing summaries: {e}")
+            logging.error(f"❌ Error checking summary results: {e}")
             
     except Exception as e:
-        logging.error(f"❌ Error in parallel_summarize: {e}")
+        logging.error(f"❌ Error in sequential summarization: {e}")
+
+# ====================== RESOURCE MONITORING ======================
+
+def check_system_resources():
+    """Basic resource monitoring (optional - requires psutil)"""
+    try:
+        import psutil
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        
+        logging.info(f"🖥️ System Status:")
+        logging.info(f"   CPU: {cpu_percent:.1f}%")
+        logging.info(f"   Memory: {memory.percent:.1f}% used")
+        
+        # Warn if resources are high
+        if cpu_percent > 80:
+            logging.warning("⚠️ High CPU usage detected - consider reducing concurrency")
+        if memory.percent > 85:
+            logging.warning("⚠️ High memory usage detected - system may be under stress")
+            
+    except ImportError:
+        logging.info("💡 Install psutil for system resource monitoring: pip install psutil")
+    except Exception as e:
+        logging.error(f"❌ Error checking system resources: {e}")
+
+# ====================== MAIN EXECUTION ======================
 
 if __name__ == "__main__":
     # Validate env vars
@@ -512,25 +589,42 @@ if __name__ == "__main__":
     
     # Company and ticker configuration
     company = "Mazagon Dock Shipbuilders Limited"
-    ticker = "MAZAGOND.NS"  # NSE ticker for Mazagon Dock Shipbuilders Limited
-
-    # Alternative examples for different companies:
-    # company = "infosys"
-    # ticker = "INFY.NS"
+    ticker = "MAZAGOND.NS"
     
-    # company = "hcl technologies"
-    # ticker = "HCLTECH.NS"
+    # Resource-friendly settings
+    MAX_CONCURRENT_CRAWLS = 2  # Very conservative - adjust based on your system
     
     try:
-        # Run the full pipeline
-        asyncio.run(parallel_search(company, ticker))
-        parallel_summarize(company)
+        logging.info("🚀 Starting optimized research pipeline...")
         
-        # Display final summary
+        # Optional: Check system resources
+        check_system_resources()
+        
+        # Step 1: Optimized search and crawl
+        asyncio.run(optimized_search_and_crawl(
+            company, 
+            ticker, 
+            max_concurrent_crawls=MAX_CONCURRENT_CRAWLS
+        ))
+        
+        # Step 2: Wait a bit before summarization
+        logging.info("⏸️ Pausing briefly before summarization...")
+        time.sleep(3)  # Using time.sleep instead of asyncio.sleep
+        
+        # Step 3: Sequential summarization
+        sequential_summarize(company)
+        
+        # Step 4: Display final summary
         display_data_summary(company)
         
-        logging.info("🎉 Pipeline completed successfully!")
+        logging.info("🎉 Optimized pipeline completed successfully!")
         
+        # Final resource check
+        check_system_resources()
+        
+    except KeyboardInterrupt:
+        logging.info("🛑 Pipeline interrupted by user")
+        sys.exit(0)
     except Exception as e:
         logging.error(f"❌ Critical error in main pipeline: {e}")
         sys.exit(1)
