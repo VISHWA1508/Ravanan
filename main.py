@@ -254,6 +254,63 @@ def analyze_revenue_diversification(revenue_sources):
     
     return diversification_analysis
 
+def perform_comprehensive_revenue_analysis(yfinance_data, financial_data):
+    """Perform comprehensive revenue analysis on all available data."""
+    analysis = {
+        "revenue_streams": {},
+        "financial_metrics": {},
+        "growth_analysis": {},
+        "profitability_analysis": {},
+        "segment_analysis": {}
+    }
+    
+    try:
+        # Analyze quarterly financials if available
+        if yfinance_data.get("quarterly_financials"):
+            qf = yfinance_data["quarterly_financials"]
+            if qf:
+                analysis["revenue_streams"] = extract_revenue_sources(None, yfinance_data.get("info"))
+                analysis["financial_metrics"] = calculate_revenue_metrics(analysis["revenue_streams"])
+        
+        # Analyze company info for business segments
+        if yfinance_data.get("info"):
+            info = yfinance_data["info"]
+            analysis["segment_analysis"] = {
+                "sector": info.get("sector"),
+                "industry": info.get("industry"),
+                "business_summary": info.get("longBusinessSummary"),
+                "full_time_employees": info.get("fullTimeEmployees"),
+                "market_cap": info.get("marketCap"),
+                "enterprise_value": info.get("enterpriseValue"),
+                "revenue_per_employee": info.get("revenuePerShare") if info.get("fullTimeEmployees") else None
+            }
+        
+        # Growth analysis from earnings data
+        if yfinance_data.get("quarterly_earnings"):
+            earnings = yfinance_data["quarterly_earnings"]
+            analysis["growth_analysis"] = {
+                "earnings_available": bool(earnings),
+                "earnings_trend": "analyzing" if earnings else "no_data"
+            }
+        
+        # Profitability metrics
+        if yfinance_data.get("info"):
+            info = yfinance_data["info"]
+            analysis["profitability_analysis"] = {
+                "profit_margins": info.get("profitMargins"),
+                "operating_margins": info.get("operatingMargins"),
+                "return_on_assets": info.get("returnOnAssets"),
+                "return_on_equity": info.get("returnOnEquity"),
+                "gross_margins": info.get("grossMargins"),
+                "ebitda_margins": info.get("ebitdaMargins")
+            }
+    
+    except Exception as e:
+        analysis["error"] = str(e)
+        logging.warning(f"⚠️ Revenue analysis error: {e}")
+    
+    return analysis
+
 # ====================== ENHANCED FINANCIAL DATA FUNCTION ======================
 # [Keep your existing fetch_and_save_financial_data function unchanged]
 
@@ -303,12 +360,33 @@ def fetch_and_save_financial_data(company_name, ticker):
         # --- Earnings ---
         logging.info("├─ Fetching earnings data...")
         try:
-            data["earnings"] = safe_to_dict(getattr(stock, "earnings", None))
-            data["quarterly_earnings"] = safe_to_dict(getattr(stock, "quarterly_earnings", None))
+            # Annual income statement
+            income_stmt = getattr(stock, "income_stmt", None)
+            if income_stmt is not None:
+                data["income_statement"] = safe_to_dict(income_stmt)
+                # Optional: extract Net Income separately
+                if "Net Income" in income_stmt.index:
+                    data["net_income"] = safe_to_dict(income_stmt.loc["Net Income"])
+            else:
+                logging.warning("⚠️ Income statement not available")
+
+            # Quarterly income statement
+            quarterly_income = getattr(stock, "quarterly_income_stmt", None)
+            if quarterly_income is not None:
+                data["quarterly_income_statement"] = safe_to_dict(quarterly_income)
+                # Optional: extract quarterly Net Income
+                if "Net Income" in quarterly_income.index:
+                    data["quarterly_net_income"] = safe_to_dict(quarterly_income.loc["Net Income"])
+            else:
+                logging.warning("⚠️ Quarterly income statement not available")
+
+            # Earnings dates can still be stored if available
             data["earnings_dates"] = safe_to_dict(getattr(stock, "earnings_dates", None))
+
             logging.info("✅ Earnings data fetched successfully")
         except Exception as e:
-            logging.error(f"❌ Error fetching quarterly financials: {e}")
+            logging.error(f"❌ Error fetching earnings / income statement: {e}")
+
         
         # --- Analyst Data ---
         logging.info("├─ Fetching analyst data...")
@@ -347,53 +425,8 @@ def fetch_and_save_financial_data(company_name, ticker):
         except Exception as e:
             logging.error(f"❌ Error fetching annual financials: {e}")
             
-        # Initialize financial_data dictionary
-        financial_data = {}
-        
-        # Try to fetch balance sheet
-        try:
-            balance_sheet = stock.quarterly_balance_sheet
-            if not balance_sheet.empty:
-                balance_sheet.columns = balance_sheet.columns.strftime("%Y-%m-%d")
-                financial_data['balance_sheet'] = balance_sheet.to_dict()
-                logging.info("✅ Balance sheet fetched successfully")
-        except Exception as e:
-            logging.error(f"❌ Error fetching balance sheet: {e}")
-        
-        # Try to fetch cash flow
-        try:
-            cash_flow = stock.quarterly_cashflow
-            if not cash_flow.empty:
-                cash_flow.columns = cash_flow.columns.strftime("%Y-%m-%d")
-                financial_data['cash_flow'] = cash_flow.to_dict()
-                logging.info("✅ Cash flow fetched successfully")
-        except Exception as e:
-            logging.error(f"❌ Error fetching cash flow: {e}")
-        
-        # Try to fetch basic info
-        try:
-            info = stock.info
-            if info:
-                financial_data['company_info'] = info
-                logging.info("✅ Company info fetched successfully")
-        except Exception as e:
-            logging.error(f"❌ Error fetching company info: {e}")
-        
-        # Try to fetch historical data (last 1 year)
-        try:
-            hist_data = stock.history(period="1y")
-            if not hist_data.empty:
-                # Convert index to string
-                hist_data.index = hist_data.index.strftime("%Y-%m-%d")
-                financial_data['historical_prices'] = hist_data.to_dict()
-                logging.info("✅ Historical data fetched successfully")
-        except Exception as e:
-            logging.error(f"❌ Error fetching historical data: {e}")
-        
-        try:
-            data["cusip"] = stock.cusip
-        except Exception as e:
-            data["cusip"] = str(e)
+        # After you populate `data` with all yfinance info
+        financial_data = data  # <-- merge everything
         
         # Save to MongoDB only if we have some data
         if financial_data:
@@ -589,7 +622,7 @@ if __name__ == "__main__":
     
     # Company and ticker configuration
     company = "Mazagon Dock Shipbuilders Limited"
-    ticker = "MAZAGOND.NS"
+    ticker = "MAZDOCK.NS"
     
     # Resource-friendly settings
     MAX_CONCURRENT_CRAWLS = 2  # Very conservative - adjust based on your system
