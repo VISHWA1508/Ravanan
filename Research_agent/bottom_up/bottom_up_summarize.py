@@ -57,37 +57,52 @@ model = ChatGoogleGenerativeAI(
 )
 
 def safe_extract_value(value):
-    """Safely extract numerical values from various MongoDB formats."""
+    """Enhanced value extraction with better error handling."""
     if value is None:
         return None
     
-    # Handle MongoDB's $numberDouble format
+    # Handle MongoDB formats
     if isinstance(value, dict):
         if '$numberDouble' in value:
             try:
-                return float(value['$numberDouble'])
+                val = value['$numberDouble']
+                if val == "NaN" or val == "Infinity" or val == "-Infinity":
+                    return None
+                return float(val)
             except (ValueError, TypeError):
                 return None
-        # Handle other potential MongoDB formats
         elif 'value' in value:
             return safe_extract_value(value['value'])
+        elif len(value) == 1:
+            return safe_extract_value(list(value.values())[0])
     
-    # Handle direct numerical values
+    # Handle lists - take first valid value
+    if isinstance(value, list) and value:
+        for v in value:
+            result = safe_extract_value(v)
+            if result is not None:
+                return result
+        return None
+    
+    # Handle numeric values
     if isinstance(value, (int, float)):
-        if str(value).lower() in ['nan', 'inf', '-inf']:
+        if str(value).lower() in ['nan', 'inf', '-inf'] or value != value:  # NaN check
             return None
         return float(value)
     
-    # Handle string representations
+    # Handle strings
     if isinstance(value, str):
-        if value.lower() in ['nan', 'null', '', 'none']:
+        if value.lower() in ['nan', 'null', '', 'none', 'infinity', '-infinity']:
             return None
         try:
-            return float(value)
+            # Remove commas and convert
+            cleaned = value.replace(',', '').strip()
+            return float(cleaned)
         except ValueError:
             return None
     
     return None
+
 
 # Bottom-Up Summarization Prompt Template (same as before)
 prompt_template = ChatPromptTemplate.from_messages([
@@ -97,6 +112,11 @@ prompt_template = ChatPromptTemplate.from_messages([
     "Use the provided articles AND financial data to extract relevant insights. Be specific, quote or paraphrase sources where useful, and focus only on content directly related to {company_name}. "
     "When financial data is available, use it to support your analysis with concrete numbers, ratios, and trends. "
     "Ignore general market commentary. Present in clear, plain English using bullet points or short paragraphs under each framework section for an educated investor audience.\n\n"
+    "1. If financial data is available, calculate actual ratios and growth rates\n"
+    "2. If some financial data is missing, clearly state what's available vs. missing\n"
+    "3. Use available data to make reasonable inferences about missing data\n"
+    "4. Always provide analysis based on what IS available rather than stating 'no data'\n"
+    "5. When data is limited, focus on qualitative analysis from news articles\n\n"
     
     "Bottom-Up Framework Sections to Cover:\n\n"
     
@@ -183,56 +203,58 @@ def chunk_text(text, max_length=3000):
 
 def format_financial_data(financial_doc):
     """Format financial data for better LLM analysis with robust error handling."""
-    if not financial_doc or 'financial_data' not in financial_doc:
+    if not financial_doc or 'financial_data_normalized' not in financial_doc:
         return "No financial data available."
-    
-    financial_data = financial_doc['financial_data']
+
+    financial_data = financial_doc['financial_data_normalized']
     formatted_sections = []
     
     try:
-        # Format Company Info
-        if 'company_info' in financial_data and financial_data['company_info']:
+        # Format Ratios Section (this contains the key company metrics)
+        if 'ratios' in financial_data and financial_data['ratios']:
             formatted_sections.append("## COMPANY INFORMATION")
-            info = financial_data['company_info']
+            ratios = financial_data['ratios']
             
             # Key company info to extract
             key_info = [
                 ('Market Cap', 'marketCap'),
                 ('Enterprise Value', 'enterpriseValue'),
-                ('Trailing P/E', 'trailingPE'),
-                ('Forward P/E', 'forwardPE'),
+                ('Trailing P/E', 'pe_trailing'),
+                ('Forward P/E', 'pe_forward'),
                 ('Price to Book', 'priceToBook'),
                 ('Enterprise to Revenue', 'enterpriseToRevenue'),
                 ('Enterprise to EBITDA', 'enterpriseToEbitda'),
-                ('Profit Margins', 'profitMargins'),
-                ('Operating Margins', 'operatingMargins'),
-                ('Return on Assets', 'returnOnAssets'),
-                ('Return on Equity', 'returnOnEquity'),
-                ('Total Revenue', 'totalRevenue'),
-                ('Gross Margins', 'grossMargins'),
-                ('EBITDA Margins', 'ebitdaMargins'),
-                ('Debt to Equity', 'debtToEquity'),
-                ('Current Ratio', 'currentRatio'),
-                ('Quick Ratio', 'quickRatio'),
-                ('Total Debt', 'totalDebt'),
-                ('Total Cash', 'totalCash')
+                ('Profit Margins', 'profit_margin'),
+                ('Operating Margins', 'operating_margin'),
+                ('Return on Assets', 'roa'),
+                ('Return on Equity', 'roe'),
+                ('Revenue Growth', 'revenue_growth'),
+                ('Earnings Growth', 'earnings_growth'),
+                ('Gross Margins', 'gross_margin'),
+                ('EBITDA Margins', 'ebitda_margin'),
+                ('Debt to Equity', 'debt_to_equity'),
+                ('EPS (TTM)', 'eps_ttm'),
+                ('Beta', 'beta'),
+                ('Full Time Employees', 'fullTimeEmployees')
             ]
             
             for label, key in key_info:
-                if key in info:
-                    value = safe_extract_value(info[key])
+                if key in ratios:
+                    value = safe_extract_value(ratios[key])
                     if value is not None and value != 0:
-                        if key in ['marketCap', 'enterpriseValue', 'totalRevenue', 'totalDebt', 'totalCash']:
+                        if key in ['marketCap', 'enterpriseValue']:
                             formatted_sections.append(f"**{label}**: ₹{value:,.0f}")
-                        elif key in ['profitMargins', 'operatingMargins', 'returnOnAssets', 'returnOnEquity', 'grossMargins', 'ebitdaMargins']:
+                        elif key in ['profit_margin', 'operating_margin', 'roa', 'roe', 'revenue_growth', 'earnings_growth', 'gross_margin', 'ebitda_margin']:
                             formatted_sections.append(f"**{label}**: {value:.2%}")
+                        elif key in ['fullTimeEmployees']:
+                            formatted_sections.append(f"**{label}**: {value:,.0f}")
                         else:
                             formatted_sections.append(f"**{label}**: {value:.2f}")
         
         # Format Quarterly Financials
-        if 'quarterly_financials' in financial_data and financial_data['quarterly_financials']:
+        if 'quarterly' in financial_data and financial_data['quarterly']:
             formatted_sections.append("\n\n## QUARTERLY FINANCIAL STATEMENTS")
-            qf = financial_data['quarterly_financials']
+            qf = financial_data['quarterly']
             
             # Get available quarters and sort them
             quarters = sorted(list(qf.keys()), reverse=True)
@@ -243,8 +265,9 @@ def format_financial_data(financial_doc):
                 
                 # Key metrics to extract
                 key_metrics = [
+                    'revenue', 'net_income', 'operating_income', 'eps_basic', 'eps_diluted',
                     'Total Revenue', 'Operating Revenue', 'Gross Profit', 'EBITDA', 
-                    'EBIT', 'Operating Income', 'Net Income', 'Basic EPS', 'Diluted EPS',
+                    'EBIT', 'Net Income', 'Basic EPS', 'Diluted EPS',
                     'Cost Of Revenue', 'Operating Expense', 'Interest Expense',
                     'Tax Provision'
                 ]
@@ -265,7 +288,7 @@ def format_financial_data(financial_doc):
                             if quarter in qf and metric in qf[quarter]:
                                 value = safe_extract_value(qf[quarter][metric])
                                 if value is not None:
-                                    if metric in ['Basic EPS', 'Diluted EPS']:
+                                    if 'EPS' in metric or 'eps' in metric:
                                         formatted_sections.append(f"  - {quarter}: ₹{value:.2f}")
                                     else:
                                         formatted_sections.append(f"  - {quarter}: ₹{value:,.0f}")
@@ -277,7 +300,7 @@ def format_financial_data(financial_doc):
                     current_quarter = quarters[0]
                     previous_quarter = quarters[1]
                     
-                    growth_metrics = ['Total Revenue', 'EBITDA', 'Net Income']
+                    growth_metrics = ['revenue', 'net_income', 'Total Revenue', 'EBITDA', 'Net Income']
                     
                     for metric in growth_metrics:
                         if (current_quarter in qf and metric in qf[current_quarter] and
@@ -290,7 +313,36 @@ def format_financial_data(financial_doc):
                                 previous_val != 0):
                                 growth = ((current_val - previous_val) / abs(previous_val)) * 100
                                 formatted_sections.append(f"**{metric} QoQ Growth**: {growth:.1f}%")
-        
+
+        # Format Annual Data
+        if 'annual' in financial_data and financial_data['annual']:
+            formatted_sections.append("\n\n## ANNUAL FINANCIAL PERFORMANCE")
+            af = financial_data['annual']
+            
+            # Get available years and sort them
+            years = sorted(list(af.keys()), reverse=True)
+            formatted_sections.append(f"Available Years: {', '.join(years)}")
+            
+            if len(years) >= 2:
+                formatted_sections.append("\n### Annual Growth Analysis:")
+                
+                current_year = years[0]
+                previous_year = years[1]
+                
+                annual_metrics = ['revenue', 'net_income', 'operating_income', 'eps_basic']
+                
+                for metric in annual_metrics:
+                    if (current_year in af and metric in af[current_year] and
+                        previous_year in af and metric in af[previous_year]):
+                        
+                        current_val = safe_extract_value(af[current_year][metric])
+                        previous_val = safe_extract_value(af[previous_year][metric])
+                        
+                        if (current_val is not None and previous_val is not None and 
+                            previous_val != 0):
+                            growth = ((current_val - previous_val) / abs(previous_val)) * 100
+                            formatted_sections.append(f"**{metric} YoY Growth**: {growth:.1f}%")
+
         # Add other sections
         if 'balance_sheet' in financial_data and financial_data['balance_sheet']:
             formatted_sections.append("\n\n## QUARTERLY BALANCE SHEET")
@@ -300,9 +352,17 @@ def format_financial_data(financial_doc):
             formatted_sections.append("\n\n## QUARTERLY CASH FLOW")
             formatted_sections.append("Cash flow data available for liquidity and cash generation analysis.")
         
-        if 'history_1y' in financial_data and financial_data['history_1y']:
+        if 'market_data' in financial_data and financial_data['market_data']:
             formatted_sections.append("\n\n## HISTORICAL PRICE PERFORMANCE")
-            formatted_sections.append("1-year historical price data available for trend analysis.")
+            formatted_sections.append("Historical market data available for trend analysis.")
+        
+        if 'analyst' in financial_data and financial_data['analyst']:
+            formatted_sections.append("\n\n## ANALYST DATA")
+            formatted_sections.append("Analyst recommendations and price targets available.")
+        
+        if 'holders' in financial_data and financial_data['holders']:
+            formatted_sections.append("\n\n## INSTITUTIONAL HOLDERS")
+            formatted_sections.append("Institutional and insider holding data available.")
     
     except Exception as e:
         logging.error(f"Error formatting financial data: {e}")

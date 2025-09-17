@@ -1,10 +1,3 @@
-def display_data_summary(company_name):
-    """Display a summary of all collected data."""
-    try:
-        logging.info(f"\n📋 Data Collection Summary for {company_name.upper()}")
-    except Exception as e:
-        logging.error(f"Error displaying data summary: {e}")
-
 import logging
 import asyncio
 import os
@@ -17,6 +10,13 @@ from pymongo import MongoClient
 from datetime import datetime, timezone
 import pandas as pd
 import random
+
+def display_data_summary(company_name):
+    """Display a summary of all collected data."""
+    try:
+        logging.info(f"\n📋 Data Collection Summary for {company_name.upper()}")
+    except Exception as e:
+        logging.error(f"Error displaying data summary: {e}")
 
 # Import the optimized crawler
 from scraping.crawling.crawl import ResourceOptimizedCrawler, process_links_batch
@@ -94,6 +94,55 @@ def safe_to_dict(obj):
     if isinstance(obj, pd.Series):
         return {str(k): safe_to_dict(v) for k, v in obj.to_dict().items()}
     return obj if isinstance(obj, (str, int, float, bool)) else str(obj)
+
+def safe_extract_value(value):
+    """Enhanced value extraction with better error handling."""
+    if value is None:
+        return None
+    
+    # Handle MongoDB formats
+    if isinstance(value, dict):
+        if '$numberDouble' in value:
+            try:
+                val = value['$numberDouble']
+                if val == "NaN" or val == "Infinity" or val == "-Infinity":
+                    return None
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+        elif 'value' in value:
+            return safe_extract_value(value['value'])
+        elif len(value) == 1:
+            return safe_extract_value(list(value.values())[0])
+    
+    # Handle lists - take first valid value
+    if isinstance(value, list) and value:
+        for v in value:
+            result = safe_extract_value(v)
+            if result is not None:
+                return result
+        return None
+    
+    # Handle numeric values
+    if isinstance(value, (int, float)):
+        if str(value).lower() in ['nan', 'inf', '-inf'] or value != value:  # NaN check
+            return None
+        return float(value)
+    
+    # Handle strings
+    if isinstance(value, str):
+        if value.lower() in ['nan', 'null', '', 'none', 'infinity', '-infinity']:
+            return None
+        try:
+            # Remove commas and convert
+            cleaned = value.replace(',', '').strip()
+            return float(cleaned)
+        except ValueError:
+            return None
+    
+    return None
+
+
 
 # [Keep all your existing revenue analysis functions - extract_revenue_sources, etc.]
 def extract_revenue_sources(financials_df, company_info=None):
@@ -311,6 +360,148 @@ def perform_comprehensive_revenue_analysis(yfinance_data, financial_data):
     
     return analysis
 
+# ====================== Normalized Financial Data Function ======================
+# [Keep all the raw financial data unchange just normalized for easy access for all summarizers]
+
+def normalize_financial_data(raw_data: dict) -> dict:
+    """
+    Normalize yfinance raw financial data into a clean schema 
+    while keeping ALL raw fields available.
+    """
+    normalized = {
+        "annual": {},
+        "quarterly": {},
+        "ratios": {},
+        "cashflow": {},
+        "balance_sheet": {},
+        "earnings": {},
+        "market_data": {},
+        "analyst": {},
+        "holders": {},
+        "esg": {},
+        "other": {}
+    }
+
+    try:
+        # --- Annual Income Statement ---
+        if raw_data.get("income_statement"):
+            for period, metrics in raw_data["income_statement"].items():
+                normalized["annual"][period] = {
+                    "revenue": safe_extract_value(metrics.get("Total Revenue")),
+                    "net_income": safe_extract_value(metrics.get("Net Income")),
+                    "operating_income": safe_extract_value(metrics.get("Operating Income")),
+                    "eps_basic": safe_extract_value(metrics.get("Basic EPS")),
+                    "eps_diluted": safe_extract_value(metrics.get("Diluted EPS")),
+                    **{k: safe_extract_value(v) for k, v in metrics.items()}  # keep everything
+                }
+
+        # --- Quarterly Income Statement ---
+        if raw_data.get("quarterly_income_statement"):
+            for period, metrics in raw_data["quarterly_income_statement"].items():
+                normalized["quarterly"][period] = {
+                    "revenue": safe_extract_value(metrics.get("Total Revenue")),
+                    "net_income": safe_extract_value(metrics.get("Net Income")),
+                    "operating_income": safe_extract_value(metrics.get("Operating Income")),
+                    "eps_basic": safe_extract_value(metrics.get("Basic EPS")),
+                    "eps_diluted": safe_extract_value(metrics.get("Diluted EPS")),
+                    **{k: safe_extract_value(v) for k, v in metrics.items()}
+                }
+
+        # --- Ratios from info ---
+        if raw_data.get("info"):
+            info = raw_data["info"]
+            normalized["ratios"] = {
+                "pe_trailing": safe_extract_value(info.get("trailingPE")),
+                "pe_forward": safe_extract_value(info.get("forwardPE")),
+                "peg_ratio": safe_extract_value(info.get("pegRatio")),
+                "roe": safe_extract_value(info.get("returnOnEquity")),
+                "roa": safe_extract_value(info.get("returnOnAssets")),
+                "debt_to_equity": safe_extract_value(info.get("debtToEquity")),
+                "profit_margin": safe_extract_value(info.get("profitMargins")),
+                "operating_margin": safe_extract_value(info.get("operatingMargins")),
+                "gross_margin": safe_extract_value(info.get("grossMargins")),
+                "ebitda_margin": safe_extract_value(info.get("ebitdaMargins")),
+                "eps_ttm": safe_extract_value(info.get("trailingEps")),
+                "eps_forward": safe_extract_value(info.get("forwardEps")),
+                "revenue_growth": safe_extract_value(info.get("revenueGrowth")),
+                "earnings_growth": safe_extract_value(info.get("earningsGrowth")),
+                **{k: safe_extract_value(v) for k, v in info.items()}
+            }
+
+        # --- Balance Sheet ---
+        if raw_data.get("quarterly_balance_sheet"):
+            for period, metrics in raw_data["quarterly_balance_sheet"].items():
+                normalized["balance_sheet"][period] = {
+                    "total_assets": safe_extract_value(metrics.get("Total Assets")),
+                    "total_liabilities": safe_extract_value(metrics.get("Total Liabilities Net Minority Interest")),
+                    "total_equity": safe_extract_value(metrics.get("Ordinary Shares Number")),
+                    "cash": safe_extract_value(metrics.get("Cash And Cash Equivalents")),
+                    "debt": safe_extract_value(metrics.get("Total Debt")),
+                    **{k: safe_extract_value(v) for k, v in metrics.items()}
+                }
+
+        # --- Cash Flow ---
+        if raw_data.get("quarterly_cashflow"):
+            for period, metrics in raw_data["quarterly_cashflow"].items():
+                normalized["cashflow"][period] = {
+                    "operating_cashflow": safe_extract_value(metrics.get("Operating Cash Flow")),
+                    "free_cashflow": safe_extract_value(metrics.get("Free Cash Flow")),
+                    "capex": safe_extract_value(metrics.get("Capital Expenditure")),
+                    **{k: safe_extract_value(v) for k, v in metrics.items()}
+                }
+
+        # --- Earnings Dates & Estimates ---
+        normalized["earnings"] = {
+            "earnings_dates": raw_data.get("earnings_dates"),
+            "earnings_estimates": raw_data.get("earnings_estimates"),
+            "revenue_estimates": raw_data.get("revenue_estimates"),
+            "eps_trend": raw_data.get("eps_trend"),
+            "eps_revisions": raw_data.get("eps_revisions"),
+            "growth_estimates": raw_data.get("growth_estimates"),
+        }
+
+        # --- Market Data ---
+        normalized["market_data"] = {
+            "dividends": raw_data.get("dividends"),
+            "splits": raw_data.get("splits"),
+            "actions": raw_data.get("actions"),
+            "history_1y": raw_data.get("history_1y"),
+        }
+
+        # --- Analyst Data ---
+        normalized["analyst"] = {
+            "price_targets": raw_data.get("analyst_price_targets"),
+            "recommendations": raw_data.get("recommendations"),
+            "recommendations_summary": raw_data.get("recommendations_summary"),
+            "upgrades_downgrades": raw_data.get("upgrades_downgrades"),
+        }
+
+        # --- Holders ---
+        normalized["holders"] = {
+            "major_holders": raw_data.get("major_holders"),
+            "institutional_holders": raw_data.get("institutional_holders"),
+            "mutualfund_holders": raw_data.get("mutualfund_holders"),
+            "insider_transactions": raw_data.get("insider_transactions"),
+            "insider_purchases": raw_data.get("insider_purchases"),
+            "insider_roster_holders": raw_data.get("insider_roster_holders"),
+        }
+
+        # --- ESG ---
+        normalized["esg"] = raw_data.get("sustainability")
+
+        # --- Everything else ---
+        normalized["other"] = {
+            k: v for k, v in raw_data.items()
+            if k not in normalized
+        }
+
+    except Exception as e:
+        logging.error(f"❌ Error normalizing financial data: {e}")
+        normalized["error"] = str(e)
+
+    return normalized
+
+
 # ====================== ENHANCED FINANCIAL DATA FUNCTION ======================
 # [Keep your existing fetch_and_save_financial_data function unchanged]
 
@@ -427,13 +618,18 @@ def fetch_and_save_financial_data(company_name, ticker):
             
         # After you populate `data` with all yfinance info
         financial_data = data  # <-- merge everything
+
+        # Build normalized version
+        normalized_data = normalize_financial_data(financial_data)
+
         
         # Save to MongoDB only if we have some data
         if financial_data:
             doc = {
                 "company": company_name.lower(),
                 "ticker": ticker,
-                "financial_data": financial_data,
+                "financial_data_raw": financial_data,
+                "financial_data_normalized": normalized_data,
                 "fetched_at": datetime.now(timezone.utc),
                 "status": "success"
             }
@@ -621,8 +817,8 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # Company and ticker configuration
-    company = "Mazagon Dock Shipbuilders Limited"
-    ticker = "MAZDOCK.NS"
+    company = "Airtel"
+    ticker = "BHARTIARTL.NS"
     
     # Resource-friendly settings
     MAX_CONCURRENT_CRAWLS = 2  # Very conservative - adjust based on your system

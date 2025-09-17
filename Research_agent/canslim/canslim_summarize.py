@@ -57,37 +57,52 @@ model = ChatGoogleGenerativeAI(
 )
 
 def safe_extract_value(value):
-    """Safely extract numerical values from various MongoDB formats."""
+    """Enhanced value extraction with better error handling."""
     if value is None:
         return None
     
-    # Handle MongoDB's $numberDouble format
+    # Handle MongoDB formats
     if isinstance(value, dict):
         if '$numberDouble' in value:
             try:
-                return float(value['$numberDouble'])
+                val = value['$numberDouble']
+                if val == "NaN" or val == "Infinity" or val == "-Infinity":
+                    return None
+                return float(val)
             except (ValueError, TypeError):
                 return None
-        # Handle other potential MongoDB formats
         elif 'value' in value:
             return safe_extract_value(value['value'])
+        elif len(value) == 1:
+            return safe_extract_value(list(value.values())[0])
     
-    # Handle direct numerical values
+    # Handle lists - take first valid value
+    if isinstance(value, list) and value:
+        for v in value:
+            result = safe_extract_value(v)
+            if result is not None:
+                return result
+        return None
+    
+    # Handle numeric values
     if isinstance(value, (int, float)):
-        if str(value).lower() in ['nan', 'inf', '-inf']:
+        if str(value).lower() in ['nan', 'inf', '-inf'] or value != value:  # NaN check
             return None
         return float(value)
     
-    # Handle string representations
+    # Handle strings
     if isinstance(value, str):
-        if value.lower() in ['nan', 'null', '', 'none']:
+        if value.lower() in ['nan', 'null', '', 'none', 'infinity', '-infinity']:
             return None
         try:
-            return float(value)
+            # Remove commas and convert
+            cleaned = value.replace(',', '').strip()
+            return float(cleaned)
         except ValueError:
             return None
     
     return None
+
 
 
 # CANSLIM Summarization Prompt Template
@@ -98,6 +113,12 @@ prompt_template = ChatPromptTemplate.from_messages([
     "Structure your analysis according to the proven CANSLIM framework, integrating both short-term timing factors and long-term growth quality assessment. "
     "Use actual financial figures to calculate all ratios, growth rates, and performance metrics. Support every qualitative insight with concrete quantitative evidence where available. "
     "Focus exclusively on content directly related to {company_name} and ignore general market commentary unless it specifically impacts the target company.\n\n"
+    "1. If financial data is available, calculate actual ratios and growth rates\n"
+    "2. If some financial data is missing, clearly state what's available vs. missing\n"
+    "3. Use available data to make reasonable inferences about missing data\n"
+    "4. Always provide analysis based on what IS available rather than stating 'no data'\n"
+    "5. When data is limited, focus on qualitative analysis from news articles\n\n"
+
     
     "**CANSLIM FRAMEWORK ANALYSIS:**\n\n"
     
@@ -260,27 +281,27 @@ def chunk_text(text, max_length=3000):
 
 def format_financial_data_for_canslim(financial_doc):
     """Format financial data specifically for CANSLIM analysis with focus on growth metrics."""
-    if not financial_doc or 'financial_data' not in financial_doc:
+    if not financial_doc or 'financial_data_normalized' not in financial_doc:
         return "No financial data available."
     
-    financial_data = financial_doc['financial_data']
+    financial_data = financial_doc['financial_data_normalized']
     formatted_sections = []
     
     try:
-        # Format Company Info with CANSLIM focus
-        if 'company_info' in financial_data and financial_data['company_info']:
+        # Format Company Info with CANSLIM focus - corrected to use 'ratios' section
+        if 'ratios' in financial_data and financial_data['ratios']:
             formatted_sections.append("## CANSLIM KEY METRICS")
-            info = financial_data['company_info']
+            info = financial_data['ratios']  # Changed from 'company_info' to 'ratios'
             
             # Earnings and growth metrics (C & A factors)
             earnings_metrics = [
-                ('Trailing P/E Ratio', 'trailingPE'),
-                ('Forward P/E Ratio', 'forwardPE'),
-                ('PEG Ratio', 'pegRatio'),
-                ('EPS (TTM)', 'trailingEps'),
-                ('Forward EPS', 'forwardEps'),
-                ('Earnings Growth', 'earningsGrowth'),
-                ('Revenue Growth', 'revenueGrowth')
+                ('Trailing P/E Ratio', 'pe_trailing'),     # Changed key names to match data structure
+                ('Forward P/E Ratio', 'pe_forward'),
+                ('PEG Ratio', 'peg_ratio'),
+                ('EPS (TTM)', 'eps_ttm'),                  # Changed from 'trailingEps'
+                ('Forward EPS', 'eps_forward'),
+                ('Earnings Growth', 'earnings_growth'),    # Changed from 'earningsGrowth'
+                ('Revenue Growth', 'revenue_growth')       # Changed from 'revenueGrowth'
             ]
             
             formatted_sections.append("\n### EARNINGS & GROWTH METRICS (C & A Factors)")
@@ -290,19 +311,19 @@ def format_financial_data_for_canslim(financial_doc):
                     if value is not None and value != 0:
                         if 'Growth' in label:
                             formatted_sections.append(f"**{label}**: {value:.2%}")
-                        elif key in ['trailingEps', 'forwardEps']:
+                        elif key in ['eps_ttm', 'eps_forward']:  # Updated key names
                             formatted_sections.append(f"**{label}**: ₹{value:.2f}")
                         else:
                             formatted_sections.append(f"**{label}**: {value:.2f}")
             
             # Profitability and quality metrics (L factor)
             quality_metrics = [
-                ('Return on Equity', 'returnOnEquity'),
-                ('Return on Assets', 'returnOnAssets'),
-                ('Gross Margins', 'grossMargins'),
-                ('Operating Margins', 'operatingMargins'),
-                ('Profit Margins', 'profitMargins'),
-                ('EBITDA Margins', 'ebitdaMargins')
+                ('Return on Equity', 'roe'),               # Changed from 'returnOnEquity'
+                ('Return on Assets', 'roa'),               # Changed from 'returnOnAssets'
+                ('Gross Margins', 'gross_margin'),         # Changed from 'grossMargins'
+                ('Operating Margins', 'operating_margin'), # Changed from 'operatingMargins'
+                ('Profit Margins', 'profit_margin'),       # Changed from 'profitMargins'
+                ('EBITDA Margins', 'ebitda_margin')        # Changed from 'ebitdaMargins'
             ]
             
             formatted_sections.append("\n### PROFITABILITY & QUALITY METRICS (L Factor)")
@@ -335,7 +356,7 @@ def format_financial_data_for_canslim(financial_doc):
             strength_metrics = [
                 ('Current Ratio', 'currentRatio'),
                 ('Quick Ratio', 'quickRatio'),
-                ('Debt-to-Equity', 'debtToEquity'),
+                ('Debt-to-Equity', 'debt_to_equity'),      # Changed from 'debtToEquity'
                 ('Total Cash', 'totalCash'),
                 ('Total Debt', 'totalDebt'),
                 ('Free Cash Flow', 'freeCashflow'),
@@ -352,26 +373,31 @@ def format_financial_data_for_canslim(financial_doc):
                         else:
                             formatted_sections.append(f"**{label}**: {value:.2f}")
         
-        # Format Quarterly Financials with CANSLIM Growth Focus
-        if 'quarterly_financials' in financial_data and financial_data['quarterly_financials']:
+        # Format Quarterly Financials with CANSLIM Growth Focus - corrected section name
+        if 'quarterly' in financial_data and financial_data['quarterly']:  # Changed from 'quarterly_financials'
             formatted_sections.append("\n\n## QUARTERLY EARNINGS PROGRESSION (C Factor)")
-            qf = financial_data['quarterly_financials']
+            qf = financial_data['quarterly']  # Updated variable reference
             quarters = sorted(list(qf.keys()), reverse=True)
             
             if len(quarters) >= 2:
                 formatted_sections.append(f"**Quarters Available**: {' → '.join(reversed(quarters))}")
                 
-                # Focus on key CANSLIM earnings metrics
+                # Focus on key CANSLIM earnings metrics - using correct field names
                 canslim_metrics = [
-                    'Total Revenue', 'Gross Profit', 'Operating Income', 'Net Income', 
-                    'Basic EPS', 'Diluted EPS', 'EBITDA'
+                    'revenue',           # Changed from 'Total Revenue'
+                    'gross_profit',      # This might not exist, will handle gracefully
+                    'operating_income',  # Changed from 'Operating Income'  
+                    'net_income',        # Changed from 'Net Income'
+                    'eps_basic',         # Changed from 'Basic EPS'
+                    'eps_diluted',       # Changed from 'Diluted EPS'
+                    'ebitda'             # This might not exist in quarterly, will handle gracefully
                 ]
                 
                 for metric in canslim_metrics:
                     if quarters and quarters[0] in qf and metric in qf[quarters[0]]:
                         latest_value = safe_extract_value(qf[quarters[0]][metric])
                         if latest_value is not None:
-                            formatted_sections.append(f"\n**{metric} Quarterly Trend:**")
+                            formatted_sections.append(f"\n**{metric.replace('_', ' ').title()} Quarterly Trend:**")
                             
                             # Show quarterly progression
                             values_with_quarters = []
@@ -380,7 +406,7 @@ def format_financial_data_for_canslim(financial_doc):
                                     value = safe_extract_value(qf[quarter][metric])
                                     if value is not None:
                                         values_with_quarters.append((quarter, value))
-                                        if metric in ['Basic EPS', 'Diluted EPS']:
+                                        if metric in ['eps_basic', 'eps_diluted']:  # Updated field names
                                             formatted_sections.append(f"  - {quarter}: ₹{value:.2f}")
                                         else:
                                             formatted_sections.append(f"  - {quarter}: ₹{value:,.0f}")
@@ -417,8 +443,8 @@ def format_financial_data_for_canslim(financial_doc):
                     latest_data = qf[latest_quarter]
                     
                     # Revenue quality check (revenue growth vs earnings growth)
-                    revenue = safe_extract_value(latest_data.get('Total Revenue'))
-                    net_income = safe_extract_value(latest_data.get('Net Income'))
+                    revenue = safe_extract_value(latest_data.get('revenue'))      # Updated field name
+                    net_income = safe_extract_value(latest_data.get('net_income')) # Updated field name
                     
                     if revenue and net_income and revenue != 0:
                         net_margin = (net_income / revenue) * 100
@@ -426,8 +452,8 @@ def format_financial_data_for_canslim(financial_doc):
                         
                         # Compare margins across quarters for trend
                         if len(quarters) >= 2:
-                            prev_revenue = safe_extract_value(qf[quarters[1]].get('Total Revenue', 0))
-                            prev_net_income = safe_extract_value(qf[quarters[1]].get('Net Income', 0))
+                            prev_revenue = safe_extract_value(qf[quarters[1]].get('revenue', 0))      # Updated field name
+                            prev_net_income = safe_extract_value(qf[quarters[1]].get('net_income', 0)) # Updated field name
                             if prev_revenue and prev_net_income and prev_revenue != 0:
                                 prev_margin = (prev_net_income / prev_revenue) * 100
                                 margin_change = net_margin - prev_margin
@@ -442,7 +468,7 @@ def format_financial_data_for_canslim(financial_doc):
             formatted_sections.append("\n\n## CASH FLOW QUALITY (A & S Factors)")
             formatted_sections.append("Cash flow statements available for earnings quality and financial strength analysis.")
         
-        if 'history_1y' in financial_data and financial_data['history_1y']:
+        if 'market_data' in financial_data and financial_data['market_data']:  # Updated section name
             formatted_sections.append("\n\n## PRICE PERFORMANCE DATA (M Factor)")
             formatted_sections.append("Historical price data available for relative strength and market direction analysis.")
     

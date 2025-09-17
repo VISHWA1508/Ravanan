@@ -1,0 +1,9 @@
+yfinance
+pymongo
+python-dotenv
+langchain
+langchain-google-genai
+pandas
+google-search-results
+crawl4ai
+psutil
