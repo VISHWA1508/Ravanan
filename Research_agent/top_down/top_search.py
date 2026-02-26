@@ -12,7 +12,7 @@ load_dotenv()
 SERP_API_KEY = os.getenv("SERPAPI_API_KEY")
     
 # Initialize Groq LLM
-llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 
 # LLM prompt template
 instruction_prompt = ChatPromptTemplate.from_messages([

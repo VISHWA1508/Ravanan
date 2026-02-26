@@ -40,8 +40,7 @@ except Exception as e:
     
 # Initialize Gemini LLM with random API key
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",
-    google_api_key=GOOGLE_API_KEY
+    model="gemini-2.5-flash",    google_api_key=GOOGLE_API_KEY
 )
 
 # LLM prompt template
@@ -1144,7 +1143,7 @@ def duckduckgo_search(query):
     return results.get("organic_results", [])
 
 # Function to run Google search
-def google_search(query, max_pages=5):
+def google_search(query, max_pages=1):
     all_results = []
     for start in range(0, max_pages * 10, 10):  # paginate
         search = GoogleSearch({
@@ -1161,66 +1160,70 @@ def google_search(query, max_pages=5):
 
 def build_user_prompt(company_name):
     return (
-        f"Provide in-depth news and analysis on {company_name}"
-        f"Is the company heavily dependent on a single industry segment? How has the revenue distribution changed over time? Are emerging industries gaining a larger share of the company's revenue? How does the company's industry diversification compare to competitors? Does the company's revenue distribution align with its stated strategic goals?"
-        f"Which products are experiencing the highest growth rates?- Are any flagship products showing signs of maturity or decline?- How does the growth of newer products compare to established ones?- What is the company's product pipeline, and how might it affect future revenue distribution?- How do growth rates compare to market growth rates for similar products?"
-        f"What percentage of revenue comes from domestic versus international markets?- Which international regions are growing fastest for the company?- How has the geographical distribution changed over time?- What are the company's stated goals for geographical expansion?- How does the company's international presence compare to competitors?- What risks (political, economic, currency) exist in the company's key international markets?"
-        f"How is the overall industry divided into meaningful segments?- Which segments are growing, stable, or declining?- How concentrated or fragmented is each segment?- Where does the target company position itself within the industry structure?- Are there underserved segments that represent opportunities?- How are industry boundaries changing or blurring with adjacent industries?"
-        f"Is industry demand growing faster or slower than supply?- What are the key drivers of demand in this industry?- Are there supply constraints or oversupply conditions?- How cyclical is demand in this industry?- What leading indicators best predict demand changes?- How elastic is pricing in response to supply- demand shifts?"
-        f"Are companies from adjacent industries entering this market?- Are established players in this industry diversifying into new sectors?- What capabilities or assets facilitate successful cross- industry migration?- How are customer needs evolving in ways that might redefine industry boundaries?- What regulatory or technological barriers protect industry boundaries?"
-        f"What is the current size of the addressable market? What percentage of the TAM is currently being served? How is the TAM expected to grow over the next 5- 10 years? . What factors could significantly expand or contract the TAM? How does the company's current market share compare to the TAM? What portion of the TAM is realistically addressable given the company's capabilities?"
-        f"What is the overall industry CAGR over the past 5 years?  - How does this compare to broader economic growth?  - Which segments are growing faster or slower than the industry average?  - Is the growth rate accelerating, stable, or decelerating?  - What factors are driving growth in high-performing segments?  - How sustainable is the current growth trajectory?"
-        f"Which PESTLE factors currently have the greatest impact on the industry?- What upcoming changes in these factors might significantly affect the industry?- How do these factors vary across different geographic markets?- Which factors represent opportunities versus threats?- How well is the company positioned to respond to these external factors?- What leading indicators should be monitored to anticipate changes in these factors?"
-        f"How sensitive is the industry to economic downturns?- What is the typical lag between economic changes and industry impact?- Where is the industry currently positioned in its cycle?"
-        f"What stage of the life cycle is the industry currently in?- How long has the industry been in this stage, and how long might it remain?- Are different segments at different life cycle stages?- What are the implications of the current stage for competitive dynamics?- What strategies are most appropriate given the life cycle stage?- What factors might accelerate or delay progression to the next stage?"
-        f"Where in the value chain is profit concentration increasing or decreasing?- Which business models are gaining or losing economic value?- What factors are driving value migration within the industry?- How might emerging technologies redistribute value in the future?- Where is the company positioned relative to value migration trends?- What strategic moves could position the company to capture migrating value?"
-        f"What are the 5- 7 most critical KPIs for this industry? How does the company perform on these KPIs relative to competitors? Are there emerging KPIs gaining importance in the industry? How have benchmark levels for key KPIs changed over time? Which KPIs most strongly correlate with financial performance? What operational metrics serve as leading indicators for financial KPIs?"
-        f"Key Questions:- What are typical profit margins at different points in the value chain?- How capital- intensive is the industry, and how is this changing?- What financial characteristics distinguish industry leaders?- How do financial metrics vary across different business models within the industry?- What financial trends are emerging across the industry?- How do financial structures change throughout the industry life cycle?"
-        f"Which of the five forces exerts the strongest influence on industry profitability?- How have these forces evolved over the past 5-10 years?- What trends might strengthen or weaken each force in the future?- How do these forces vary across different industry segments?- What strategic implications do these forces have for positioning within the industry?- How might technological or regulatory changes alter the five forces?"
-        f"What inherent characteristics make this industry attractive or challenging?- What external developments present the greatest opportunities or threats?- How are industry participants responding to these factors?- Which companies are best positioned to leverage industry strengths and opportunities?- How might industry weaknesses be addressed through innovation or consolidation?- What strategic moves might mitigate industry-level threats?"
-        f"Which industry segments represent the most attractive opportunities?- How is the company positioned across different segments?- How have segments evolved within the matrix over time?- What resource allocation strategy is appropriate given the segment distribution?- Which segments are likely to transition between categories in the near future?- How does the company's segment positioning compare to key competitors?"
-        f"Which segments warrant increased investment? Which segments should be maintained with selective investment? Which segments are candidates for harvesting or divestment? How might industry attractiveness factors evolve over time? What strategic moves could improve competitive position in key segments? How does the portfolio balance compare to competitors?"
-        f"How balanced is the conglomerate's portfolio across different industries?- Which segments contribute most significantly to overall performance?- Are high- weightage segments performing well or underperforming?- How does the conglomerate's resource allocation align with segment performance and potential?- What is the trajectory of each segment's score over time?- How does the overall conglomerate score compare to peer conglomerates?"
-        f"Which segments demonstrate the most efficient cost structures? - How do capital intensity and asset utilization vary across segments?  - Are there segments with financial structures significantly different from industry norms?  - How have segment financial structures changed over time?- Do any segments show evidence of benefiting from synergies within the conglomerate?- Which segments have the most sustainable financial structures?"
-        f"How diverse are the industry dynamics across the conglomerate's portfolio?- Which segments face the most favorable or challenging industry conditions?- Are there common external factors affecting multiple segments?- How well does the conglomerate's overall strategy account for segment-specific industry dynamics?- Are there opportunities for cross-pollination of best practices between segments?- Does the conglomerate demonstrate superior management capabilities across diverse industries?"
-        f"How is the conglomerate's portfolio distributed across the GE matrix?- Is there appropriate balance between growth opportunities and cash-generating businesses?- Which segments should receive priority for capital allocation?- Are there segments that should be considered for divestiture?- How has the positioning of segments changed over time?- Does the conglomerate's actual resource allocation align with what the GE matrix suggests?"
-        f"What types of external disruptions pose the greatest threat to this industry?- How has the industry historically responded to major external shocks?- Which companies demonstrated superior resilience during past disruptions?- What structural changes resulted from previous external shocks?- How might future external disruptions differ from historical patterns?- What contingency planning is evident among industry participants?"
-        f"How sensitive is industry profitability to tax rate changes? - Which companies have the most tax-efficient structures?  - What tax policy changes are currently under consideration by relevant authorities?  - How might tax changes alter competitive dynamics within the industry?  - Are there tax-driven trends in corporate domicile or structure?  - How do tax considerations influence capital allocation decisions?"
-        f"Which ESG factors are most material to this industry's financial performance?  - How are regulatory requirements evolving regarding key ESG issues?  - Which companies are leaders versus laggards on critical ESG metrics?  - How are consumer preferences shifting based on ESG considerations?  - What ESG-related risks could significantly impact industry economics?  - Are there emerging opportunities from ESG trends that companies could capitalize on?"
-        f"How sensitive is the industry to changes in political leadership?  - Which political factors have historically had the greatest impact on industry performance?  - What upcoming political events could significantly affect the industry?  - How do different political ideologies or parties approach regulation of this industry?  - Which companies are most exposed to or insulated from political risks?  - How effectively do industry participants manage political relationships and risks?"
-        f"What types of misconduct or scandals have historically affected this industry?  - Are there structural characteristics that make the industry vulnerable to certain types of misconduct?  - Which companies demonstrate superior governance practices and ethical cultures?  - What regulatory changes might result from potential scandals?  - How might consumer trust or industry reputation be affected by misconduct?  - What early warning signs might indicate emerging governance problems?"
-        f"How well aligned is the industry with current and projected economic conditions?- Are disaster risks adequately reflected in current valuations?- Does the industry's life cycle stage suggest favorable timing for investment?- What catalysts might improve the economic fit in the near to medium term?- How does the economic fit vary across different segments within the industry?- What indicators should be monitored to identify changes in economic fit?"
-        f"What do leading KPIs indicate about future financial performance?  - Are there inflection points visible in key metrics?  - How do current financial metrics compare to historical ranges?- Is performance momentum positive, neutral, or negative?- Do operational metrics support or contradict financial trends?- What time lag typically exists between KPI changes and financial impact?"
-        f"What is the current integrated timing score for the investment?- Which component has the greatest influence on the timing decision?- What changes would significantly improve or worsen the timing score?- How sensitive is the timing score to changes in individual components?- What monitoring framework should be established to track timing factors?- What catalysts might trigger a reassessment of the timing decision?"
-        f"Does the timing analysis support different positions for short- term versus long- term horizons?- What position size is appropriate given the timing conviction and risk assessment?- What specific catalysts or developments would trigger a position change?- How does the recommended position compare to market consensus?- What monitoring framework should be established to track timing factors?- What risk management parameters should accompany the position recommendation?"
-        f"How has the founder's background shaped the company's strategic direction?  - What unique insights or advantages did the founder bring to the business?  - How effectively has the founder's vision been institutionalized within the company?  - If the founder has departed, how smooth was the transition and what legacy remains?  - Does the company remain dependent on the founder's continued involvement?  - How does the market perceive the founder's leadership and decision-making?"
-        f"Are promoters increasing or decreasing their ownership stake over time?- What percentage of promoter holdings are pledged, and how has this changed?- What do pledging patterns suggest about promoters' financial position?- Have there been any unusual or concerning transactions involving promoter shares?- How aligned are promoter interests with those of minority shareholders?- What risks might high levels of pledging pose to share price stability?"
-        f"Does the board have sufficient independence and relevant expertise?  - How effective is the board in providing oversight and strategic guidance?  - Are there any concerning related party transactions or conflicts of interest?  - How transparent is the company in its communications with shareholders?  - Does the company have a history of regulatory compliance issues?  - How well are minority shareholder interests protected?"
-        f"Do executives have relevant experience for their current roles?  - What is their track record of performance in previous positions?  - Are there any concerning patterns or incidents in their backgrounds?  - How well does the team work together and complement each other's skills?  - Is executive compensation aligned with shareholder interests?  - What is the depth of talent below the C-suite level?"
-        f"What are the most distinctive aspects of the company's business model?- How sustainable is the business model in the face of industry changes?- What competitive advantages are embedded in the business model?-How has the business model evolved, and what drove those changes?- What metrics best capture the health and performance of this business model?- What potential disruptions could threaten the business model?"
-        f"How does the company's pricing strategy compare to competitors?- What degree of pricing power does the company possess?- How effectively does pricing communicate the value proposition?- Is the pricing strategy sustainable given cost structures and competitive dynamics?- How might pricing strategy need to evolve as the company or industry matures?- What pricing experiments or innovations has the company implemented?"
-        f"How clearly articulated and consistent is the company's strategy? Does the company have the capabilities required to execute its strategy? How well does the strategy address market opportunities and threats? Is there alignment between strategy, resource allocation, and organizational structure? What strategic tensions or trade- offs is the company managing? How adaptable is the strategy to changing market conditions?"
-        f"What has been the primary driver of the company's historical growth? How effective has the company been at generating organic growth? What is the company's track record with acquisitions and integration? How sustainable are current growth rates given market size and competition? What new growth vectors is the company developing? How does the company's growth pattern compare to industry peers?"
-        f"Is R&D investment growing, stable, or declining relative to revenue?  - How productive is the company's R&D compared to competitors?  - What major innovations are in the pipeline?  - How well does the R&D portfolio align with strategic priorities?  - Does the company have a track record of successfully commercializing R&D?  - What is the company's approach to protecting intellectual property?"
-        f"Is the company a technology leader, fast follower, or laggard in its industry?  - How effectively does the company leverage technology for competitive advantage?  - What is the company's track record of successful technology implementation?  - How well integrated is technology strategy with overall business strategy?  - What emerging technologies present opportunities or threats?  - How does the company balance technology innovation with stability and security?"
-        f"How likely is the company to pursue significant acquisitions? What types of acquisition targets would align with the company's strategy? How vulnerable is the company to being acquired? What would be the likely premium in a takeover scenario? How might potential M&A activity affect industry structure? What synergies might be realized in potential combinations?"
-        f"Are promoters increasing or decreasing their ownership stake?- What might motivate recent changes in promoter holdings?- Is pledging increasing or decreasing, and what does this suggest?- What share price decline would potentially trigger margin calls on pledged shares?- How might changes in promoter holdings affect corporate control?- Do patterns suggest insider confidence or concern about future prospects?"
-        f"What major new products are in development?  - How might these products impact the company's competitive positioning?  - What is the potential revenue contribution from the pipeline?  - What risks could delay or derail key product launches?  - How does the pipeline compare to competitor innovation efforts?  - Does the pipeline address emerging customer needs and market trends?"
-        f"What aspects of the business model create elevated fraud risk?- Are there financial red flags that warrant further investigation?- How robust are the company's governance and control mechanisms?- Has the company or industry experienced significant fraud cases historically?- How transparent is management about challenges and setbacks?- What would be the potential impact of a major fraud or scandal?"
-        f"What scenarios would most severely test the company's business model?- How would the company's financial position withstand severe stress?- What mitigating actions could management take in crisis scenarios?- How has the company performed during previous downturns?- Are there specific trigger events that could precipitate a crisis?- How does the company's resilience compare to key competitors?"
-        f"How does the current P/E compare to historical ranges?  - Is the P/E premium or discount relative to peers justified?  - What earnings growth rate is implied by the current P/E?  - How cyclical are earnings, and how does this affect P/E interpretation?  - What catalysts might cause a P/E expansion or contraction?  - How sensitive is the P/E to changes in growth expectations?"
-        f"How does the current P/B compare to historical ranges?  - Is the P/B premium or discount relative to peers justified by ROE differences?  - Does book value accurately reflect the true value of assets?  - Are there significant off-balance-sheet assets or liabilities?  - How has management historically allocated capital relative to book value?  - What level of ROE would justify the current P/B ratio?"
-        f"How has ROE trended over time, and what has driven changes?  - Which component of the DuPont formula contributes most to ROE?  - Is current ROE sustainable or likely to revert to historical means?  - How does ROE compare to the company's cost of equity?  - Is high ROE achieved through excessive leverage or other risks?  - What investments or strategies could improve future ROE?"
-        f"How has ROCE trended over time, and what has driven changes?  - Does ROCE exceed the company's cost of capital, indicating value creation?  - How does ROCE compare to industry peers?  - What investments or strategies could improve future ROCE?  - Is the company effectively allocating incremental capital?  - How cyclical is ROCE, and where are we in the cycle?"
-        f"How has EBITDA and EBITDA margin trended over time?  - What factors have driven changes in EBITDA?  - How cyclical is EBITDA, and where are we in the cycle?  - Does EBITDA adequately reflect the company's true operational performance?  - What is the relationship between EBITDA and cash flow?  - How does the company's EBITDA quality compare to peers?"
-        f"How has EV changed over time, and what has driven these changes? What portion of EV is represented by debt versus equity? How does the company's capital structure compare to peers? Are there significant non- operating assets or liabilities affecting EV? How might EV be affected by potential corporate actions? What is the relationship between EV and the company's underlying asset base?"
-        f"How does the current EV/EBITDA compare to historical ranges? Is the EV/EBITDA premium or discount relative to peers justified? What EBITDA growth rate is implied by the current EV/EBITDA? How does the EV/EBITDA ratio compare to the company's historical M&A multiples? What catalysts might cause an EV/EBITDA expansion or contraction? How does the EV/EBITDA ratio compare to other valuation metrics?"
-        f"How has revenue growth trended over time? What are the primary drivers of growth (price, volume, mix, acquisitions)? How does growth compare to the overall market and key competitors? Is growth accelerating, stable, or decelerating? How sustainable is the current growth trajectory? What is the relationship between revenue growth and profitability?"
-        f"Are YoY growth rates accelerating, stable, or decelerating?  - How consistent are YoY trends across different metrics?  - What explains significant divergences between different YoY metrics?  - How do YoY comparisons adjust for industry or economic cycles?  - Are there any base effects distorting YoY comparisons?  - What do YoY trends suggest about competitive positioning?"
-        f"How does recent QoQ performance compare to historical seasonal patterns? Are there emerging trends visible in QoQ data not yet apparent in YoY comparisons? What explains significant divergences between different QoQ metrics? How volatile are QoQ results, and what drives this volatility? Do QoQ trends suggest an inflection point in the business? How do QoQ results compare to management's internal targets?"
-        f"What are the key drivers of value in the DCF model?  - How sensitive is the valuation to changes in key assumptions?  - What growth and profitability assumptions are implied by the current market price?  - How does the DCF valuation compare to market price and other valuation methods?  - What risks or opportunities are not adequately captured in the DCF model?  - How has the DCF valuation changed over time, and what has driven these changes?"
-        f"How does the company's valuation compare to appropriate peers?  - Is any premium or discount to peers justified by fundamentals?  - Which valuation metrics are most appropriate for this company and industry?  - How has relative valuation changed over time?  - What catalysts might cause relative valuation to change?  - How do different peer selection criteria affect the relative valuation assessment?"
+        # Phase 1: Industry Diversification & Revenue Distribution
+f"Provide in-depth news and analysis on {company_name}"
+f"Is the company heavily dependent on a single industry segment? - How has the revenue distribution changed over time? - Are emerging industries gaining a larger share of the company's revenue? - How does the company's industry diversification compare to competitors? - Does the company's revenue distribution align with its stated strategic goals? - What percentage of revenue comes from each major business segment? - Which segments are growing fastest or showing signs of maturity?"
 
+# Phase 2: Product Growth & Pipeline Analysis  
+f"Product Growth & Pipeline Analysis"
+# Phase 3: Geographic Revenue Analysis
+f"Geographic Revenue Analysis"
+# Phase 4: Industry Structure & Segmentation
+f"Industry Structure & Segmentation"
+# Phase 5: Industry Demand-Supply Dynamics
+f"Industry Demand-Supply Dynamics"
+# Phase 6: Cross-Industry Competition & Boundaries
+f"Cross-Industry Competition & Boundaries"
+# Phase 7: Total Addressable Market Analysis
+f"Total Addressable Market Analysis"
+# Phase 8: Industry Growth & CAGR Analysis
+f"Industry Growth & CAGR Analysis"
+# Phase 9: PESTLE Impact Analysis
+f"PESTLE Impact Analysis"
+# Phase 10: Industry Cyclicality & Economic Sensitivity
+f"Industry Cyclicality & Economic Sensitivity"
+# Phase 11: Industry Life Cycle Analysis
+f"Industry Life Cycle Analysis"
+# Phase 12: Value Chain & Profit Migration
+f"Value Chain & Profit Migration"
+# Phase 13: Industry KPIs & Performance Benchmarks
+f"Industry KPIs & Performance Benchmarks"
+# Phase 14: Industry Financial Characteristics
+f"Industry Financial Characteristics"
+# Phase 15: Porter's Five Forces Analysis
+f"Porter's Five Forces Analysis"
+# Phase 16: Industry Attractiveness Assessment
+f"Industry Attractiveness Assessment"
+# Phase 17: BCG Matrix & Segment Analysis
+f"BCG Matrix & Segment Analysis"
+# Phase 18: Strategic Investment Priorities
+f"Strategic Investment Priorities"
+# Phase 19: Conglomerate Portfolio Analysis
+f"Conglomerate Portfolio Analysis"
+# Phase 20: Segment Financial Structure Analysis
+f"Segment Financial Structure Analysis"
+# Phase 21: Cross-Segment Industry Dynamics
+f"Cross-Segment Industry Dynamics"
+# Phase 22: GE Matrix Strategic Positioning
+f"GE Matrix Strategic Positioning"
+# Phase 23: External Disruption Analysis
+f"External Disruption Analysis"
+# Phase 24: Tax Impact & Policy Analysis
+f"Tax Impact & Policy Analysis"
+# Phase 25: ESG Impact Assessment
+f"ESG Impact Assessment"
+# Phase 26: Political Risk Analysis
+f"Political Risk Analysis"
+# Phase 27: Governance & Misconduct Risk
+f"Governance & Misconduct Risk"
+# Phase 28: Economic Fit Assessment
+f"Economic Fit Assessment"
+# Phase 29: Leading Indicator Analysis
+f"Leading Indicator Analysis"
+# Phase 30: Investment Timing Framework
+f"Investment Timing Framework"
+# Phase 31: Position Sizing & Recommendations
+f"Position Sizing & Recommendations"
         )
 
 # Final wrapper

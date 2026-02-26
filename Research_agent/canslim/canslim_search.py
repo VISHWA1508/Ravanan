@@ -40,8 +40,7 @@ except Exception as e:
     
 # Initialize Gemini LLM with random API key
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",
-    google_api_key=GOOGLE_API_KEY
+    model="gemini-2.5-flash",    google_api_key=GOOGLE_API_KEY
 )
 
 # LLM prompt template
@@ -399,7 +398,7 @@ def duckduckgo_search(query):
     return results.get("organic_results", [])
 
 # Function to run Google search
-def google_search(query, max_pages=5):
+def google_search(query, max_pages=1):
     all_results = []
     for start in range(0, max_pages * 10, 10):  # paginate
         search = GoogleSearch({
@@ -437,7 +436,7 @@ def full_search(company_name):
     ddg_results = duckduckgo_search(query)
 
     print(f"\n🔎 Step 3: Google Search (multi-page) for: {query}")
-    google_results = google_search(query, max_pages=3)
+    google_results = google_search(query, max_pages=1)
 
     all_links = []
     for r in ddg_results + google_results:

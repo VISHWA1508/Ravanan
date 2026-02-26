@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+import time
 from datetime import datetime, timezone
 import pandas as pd
 
@@ -50,10 +51,14 @@ collection = db["raw_data"]
 financial_collection = db["financial_data"]
 summary_collection = db["top_down_summarization"]
 
-# Gemini 2.0 Flash model with random API key
-model = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash",
-    google_api_key=GOOGLE_API_KEY
+# Gemini 2.5 Flash lite model with random API key (quality model)
+quality_model = ChatGoogleGenerativeAI(
+    model="gemini-2.5-flash",    google_api_key=GOOGLE_API_KEY
+)
+
+# Gemma 3 27B model for cheap chunk summaries
+cheap_model = ChatGoogleGenerativeAI(
+    model="gemma-3-27b-it",    google_api_key=GOOGLE_API_KEY
 )
 
 def safe_extract_value(value):
@@ -205,13 +210,30 @@ prompt_template = ChatPromptTemplate.from_messages([
     )
 ])
 
-# Create chain
-chain = prompt_template | model | StrOutputParser()
+# Gemma-compatible prompt (no system message)
+gemma_prompt = ChatPromptTemplate.from_messages([
+    ("human", """You are a financial analyst.
+Analyze the following content about {company_name} and extract 
+only the most important investment-relevant insights.
+Summarize in maximum 200 words. Be concise and specific.
+
+Content:
+{articles}
+
+Financial Data:
+{financial_data}
+
+Provide a 200-word maximum investment insight summary only.""")
+])
+
+# Create chains
+cheap_chain = gemma_prompt | cheap_model | StrOutputParser()
+quality_chain = prompt_template | quality_model | StrOutputParser()
 
 def clean_company_name(name):
     return name.lower().replace(" full search", "").strip()
 
-def chunk_text(text, max_length=3000):
+def chunk_text(text, max_length=800):
     words = text.split()
     return [" ".join(words[i:i + max_length]) for i in range(0, len(words), max_length)]
 
@@ -378,8 +400,25 @@ def summarize_company(company_name):
     company_key = clean_company_name(company_name)
     logging.info(f"\n📊 Starting top-down summarization for: {company_key}")
 
-    # Fetch scraped articles
-    company_articles = [doc.get("raw_content", "").strip() for doc in collection.find({"company": {"$regex": f"^{company_key}", "$options": "i"}}) if doc.get("raw_content")]
+    # Fetch scraped articles with quality filtering
+    all_docs = list(collection.find(
+        {'company': {'$regex': f'^{company_key}', '$options': 'i'}}
+    ))
+
+    quality_articles = [
+        doc.get('raw_content', '').strip()
+        for doc in all_docs
+        if doc.get('raw_content')
+        and len(doc.get('raw_content', '')) > 500
+        and len(doc.get('raw_content', '')) < 50000
+        and doc.get('raw_content', '').count(' ') > 50
+    ]
+
+    company_articles = sorted(
+        quality_articles,
+        key=len,
+        reverse=True
+    )[:20]
 
     # Fetch and format financial data
     financial_doc = financial_collection.find_one({"company": company_key})
@@ -407,32 +446,23 @@ def summarize_company(company_name):
             chunk_summaries = []
             for idx, chunk in enumerate(chunks):
                 logging.info(f"🧩 Processing chunk {idx + 1} of {len(chunks)}")
-                
-                # Split chunk back for proper formatting
-                if "## VALUATION & MARKET METRICS" in chunk:
-                    # This chunk contains financial data
-                    chunk_articles = articles_text
-                    chunk_financial = financial_text
-                else:
-                    # This chunk is primarily articles
-                    chunk_articles = chunk
-                    chunk_financial = "See other chunks for detailed financial analysis."
-                
-                summary = chain.invoke({
-                    "articles": chunk_articles, 
-                    "financial_data": chunk_financial,
+
+                summary = cheap_chain.invoke({
+                    "articles": chunk,
+                    "financial_data": "See final synthesis for full financial analysis.",
                     "company_name": company_key
                 }).strip()
                 chunk_summaries.append(summary)
+                time.sleep(10)
             
             # Final synthesis
-            final_summary = chain.invoke({
-                "articles": "\n\n".join(chunk_summaries), 
-                "financial_data": "See individual analyses above for integrated financial insights.",
+            final_summary = quality_chain.invoke({
+                "articles": "\n\n---\n\n".join(chunk_summaries), 
+                "financial_data": financial_text,
                 "company_name": company_key
             }).strip()
         else:
-            final_summary = chain.invoke({
+            final_summary = quality_chain.invoke({
                 "articles": articles_text, 
                 "financial_data": financial_text,
                 "company_name": company_key
@@ -442,9 +472,13 @@ def summarize_company(company_name):
         summary_doc = {
             "company": company_key,
             "summary": final_summary,
+            "analysis_mode": "hybrid_gemma_chunks_gemini_final",
+            "chunk_model": "gemma-3-27b-it",
+            "synthesis_model": "gemini-2.5-flash",
             "has_financial_data": financial_doc is not None,
             "financial_data_status": "included" if financial_doc else "not_available",
             "articles_count": len([a for a in company_articles if a.strip()]),
+            "articles_used": len([a for a in company_articles if a.strip()]),
             "summarized_at": datetime.now(timezone.utc)
         }
         

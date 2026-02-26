@@ -817,9 +817,9 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # Company and ticker configuration
-    company = "Airtel"
-    ticker = "BHARTIARTL.NS"
-    
+    company = "TCS"
+    ticker = "TCS.NS"
+
     # Resource-friendly settings
     MAX_CONCURRENT_CRAWLS = 2  # Very conservative - adjust based on your system
     
