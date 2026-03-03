@@ -818,8 +818,9 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # Company and ticker configuration
-    company = "TCS"
-    ticker = "TCS.NS"
+    # Allow override from environment variables (set by Node.js frontend server)
+    company = os.environ.get("RAVANAN_COMPANY", "TCS")
+    ticker = os.environ.get("RAVANAN_TICKER", "TCS.NS")
 
     # Resource-friendly settings
     MAX_CONCURRENT_CRAWLS = 2  # Very conservative - adjust based on your system

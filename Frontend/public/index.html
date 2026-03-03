@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ravanan — AI Research Intelligence</title>
+  <meta name="description"
+    content="Ravanan is an AI-powered financial research pipeline that delivers Top-Down, Bottom-Up, CANSLIM, and Financial analysis for any company." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-deep: #020408;
+      --bg-dark: #060c14;
+      --bg-card: rgba(10, 20, 35, 0.8);
+      --accent-blue: #0ea5e9;
+      --accent-violet: #7c3aed;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --text-primary: #f0f6ff;
+      --text-secondary: #8ba5c4;
+      --text-muted: #4a6b8a;
+      --border: rgba(14, 165, 233, 0.15);
+      --glow-blue: 0 0 40px rgba(14, 165, 233, 0.25);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── CANVAS BACKGROUND ─── */
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ─── GRID OVERLAY ─── */
+    .grid-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(14, 165, 233, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14, 165, 233, 0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+
+    /* ─── NOISE TEXTURE ─── */
+    .noise {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+
+    /* ─── NAV ─── */
+    nav {
+      position: fixed;
+      top: 0;
+      width: 100%;
+      z-index: 100;
+      padding: 20px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(2, 4, 8, 0.6);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-violet));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .nav-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: rgba(6, 182, 212, 0.05);
+    }
+
+    /* ─── HERO ─── */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      margin-bottom: 28px;
+      animation: fadeInDown 0.8s ease both;
+    }
+
+    .hero-eyebrow span {
+      width: 32px;
+      height: 1px;
+      background: var(--accent-cyan);
+      display: inline-block;
+    }
+
+    .hero-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(3rem, 8vw, 7rem);
+      font-weight: 800;
+      line-height: 1.0;
+      letter-spacing: -3px;
+      margin-bottom: 12px;
+      animation: fadeInDown 0.8s 0.1s ease both;
+    }
+
+    .hero-title .word-ai {
+      background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-violet) 50%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-title-sub {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(1.8rem, 4vw, 3.5rem);
+      font-weight: 400;
+      color: var(--text-secondary);
+      letter-spacing: -1px;
+      margin-bottom: 32px;
+      animation: fadeInDown 0.8s 0.2s ease both;
+    }
+
+    .hero-desc {
+      max-width: 600px;
+      font-size: 1.1rem;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      margin-bottom: 52px;
+      animation: fadeInDown 0.8s 0.3s ease both;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      animation: fadeInDown 0.8s 0.4s ease both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 40px;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-violet));
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      text-decoration: none;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 0 30px rgba(14, 165, 233, 0.35), 0 4px 20px rgba(124, 58, 237, 0.3);
+    }
+
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, var(--accent-violet), var(--accent-blue));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 50px rgba(14, 165, 233, 0.5), 0 8px 30px rgba(124, 58, 237, 0.4);
+    }
+
+    .btn-primary:hover::before {
+      opacity: 1;
+    }
+
+    .btn-primary span {
+      position: relative;
+      z-index: 1;
+    }
+
+    .btn-primary svg {
+      position: relative;
+      z-index: 1;
+      transition: transform 0.3s;
+    }
+
+    .btn-primary:hover svg {
+      transform: translateX(4px);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 32px;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover {
+      border-color: rgba(14, 165, 233, 0.5);
+      color: var(--accent-blue);
+      background: rgba(14, 165, 233, 0.05);
+    }
+
+    /* ─── STATS ROW ─── */
+    .stats-row {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      margin-top: 80px;
+      flex-wrap: wrap;
+      animation: fadeInUp 0.8s 0.6s ease both;
+    }
+
+    .stat-item {
+      padding: 24px 48px;
+      text-align: center;
+      border-left: 1px solid var(--border);
+    }
+
+    .stat-item:first-child {
+      border-left: none;
+    }
+
+    .stat-num {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff, var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-weight: 500;
+    }
+
+    /* ─── FEATURES ─── */
+    .features {
+      position: relative;
+      z-index: 1;
+      padding: 100px 48px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      text-align: center;
+      font-size: 0.75rem;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent-cyan);
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-family: 'Space Grotesk', sans-serif;
+      text-align: center;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      margin-bottom: 16px;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      max-width: 500px;
+      margin: 0 auto 64px;
+      line-height: 1.7;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+      backdrop-filter: blur(10px);
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent-blue)), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-6px);
+      border-color: var(--card-accent, var(--accent-blue));
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      margin-bottom: 20px;
+    }
+
+    .feature-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .feature-desc {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    /* ─── PIPELINE VISUAL ─── */
+    .pipeline {
+      position: relative;
+      z-index: 1;
+      padding: 80px 48px;
+      background: rgba(6, 12, 20, 0.6);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pipeline-inner {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .pipeline-steps {
+      display: flex;
+      align-items: flex-start;
+      gap: 0;
+      margin-top: 60px;
+      position: relative;
+    }
+
+    .pipeline-steps::before {
+      content: '';
+      position: absolute;
+      top: 30px;
+      left: 30px;
+      right: 30px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent-blue), var(--accent-violet), var(--accent-cyan));
+    }
+
+    .pipeline-step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 0 12px;
+    }
+
+    .step-dot {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 16px;
+      position: relative;
+      z-index: 1;
+      border: 2px solid transparent;
+      transition: transform 0.3s;
+    }
+
+    .step-dot:hover {
+      transform: scale(1.1);
+    }
+
+    .step-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+    }
+
+    /* ─── FINAL CTA ─── */
+    .final-cta {
+      position: relative;
+      z-index: 1;
+      padding: 120px 48px;
+      text-align: center;
+    }
+
+    .cta-card {
+      max-width: 700px;
+      margin: 0 auto;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(124, 58, 237, 0.08));
+      border: 1px solid rgba(14, 165, 233, 0.2);
+      border-radius: 30px;
+      padding: 64px 48px;
+      backdrop-filter: blur(20px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center top, rgba(14, 165, 233, 0.1), transparent 60%);
+      pointer-events: none;
+    }
+
+    .cta-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -1.5px;
+      margin-bottom: 16px;
+    }
+
+    .cta-desc {
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+      margin-bottom: 40px;
+      line-height: 1.7;
+    }
+
+    /* ─── FOOTER ─── */
+    footer {
+      position: relative;
+      z-index: 1;
+      border-top: 1px solid var(--border);
+      padding: 32px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-violet));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .footer-text {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* ─── ANIMATIONS ─── */
+    @keyframes fadeInDown {
+      from {
+        opacity: 0;
+        transform: translateY(-24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes float {
+
+      0%,
+      100% {
+        transform: translateY(0px);
+      }
+
+      50% {
+        transform: translateY(-16px);
+      }
+    }
+
+    @keyframes pulse-glow {
+
+      0%,
+      100% {
+        box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+      }
+
+      50% {
+        box-shadow: 0 0 50px rgba(14, 165, 233, 0.7);
+      }
+    }
+
+    @keyframes spin-slow {
+      from {
+        transform: rotate(0deg);
+      }
+
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .floating {
+      animation: float 4s ease-in-out infinite;
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 768px) {
+      nav {
+        padding: 16px 24px;
+      }
+
+      .features {
+        padding: 60px 24px;
+      }
+
+      .pipeline {
+        padding: 60px 24px;
+      }
+
+      .final-cta {
+        padding: 60px 24px;
+      }
+
+      .pipeline-steps {
+        flex-direction: column;
+        gap: 32px;
+      }
+
+      .pipeline-steps::before {
+        display: none;
+      }
+
+      .stat-item {
+        padding: 16px 24px;
+      }
+
+      footer {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+      }
+
+      .cta-card {
+        padding: 40px 24px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="bg-canvas"></canvas>
+  <div class="grid-overlay"></div>
+  <div class="noise"></div>
+
+  <!-- NAV -->
+  <nav>
+    <div class="nav-logo">⬡ Ravanan</div>
+    <div class="nav-badge">AI Research Platform</div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-eyebrow">
+      <span></span>
+      Powered by Gemini AI + Gemma
+      <span></span>
+    </div>
+
+    <h1 class="hero-title">
+      <span class="word-ai">AI-Powered</span><br />Research
+    </h1>
+    <p class="hero-title-sub">Intelligence Engine</p>
+
+    <p class="hero-desc">
+      Deep financial analysis using Top-Down, Bottom-Up, CANSLIM methodologies
+      and comprehensive financial data — all automated for any company.
+    </p>
+
+    <div class="hero-cta">
+      <a href="/analyze" class="btn-primary" id="get-started-btn">
+        <span>Get Started</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
+      </a>
+      <a href="#features" class="btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 8v4l3 3" />
+        </svg>
+        See How It Works
+      </a>
+    </div>
+
+    <!-- Floating Orb Visual -->
+    <div style="margin-top: 80px; position: relative; width: 340px; height: 220px;" class="floating">
+      <div style="
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 40% 40%, rgba(14,165,233,0.18), rgba(124,58,237,0.12), transparent 70%);
+        border-radius: 50%;
+        filter: blur(30px);
+      "></div>
+      <div style="
+        position: absolute; inset: 20px;
+        border: 1px solid rgba(14,165,233,0.2);
+        border-radius: 20px;
+        background: rgba(6,12,20,0.7);
+        backdrop-filter: blur(20px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 12px;
+        padding: 24px;
+        animation: pulse-glow 3s ease-in-out infinite;
+      ">
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+          <span
+            style="background:rgba(14,165,233,0.12);border:1px solid rgba(14,165,233,0.3);color:#0ea5e9;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;">Top-Down</span>
+          <span
+            style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#a78bfa;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;">Bottom-Up</span>
+          <span
+            style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;">CANSLIM</span>
+          <span
+            style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;">Financial</span>
+        </div>
+        <div style="color:#8ba5c4;font-size:0.85rem;text-align:center;line-height:1.5;">
+          Comprehensive analysis<br />in one automated pipeline
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-item">
+      <div class="stat-num">4</div>
+      <div class="stat-label">Analysis Types</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">20+</div>
+      <div class="stat-label">Articles Processed</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">AI</div>
+      <div class="stat-label">Gemini Powered</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">Live</div>
+      <div class="stat-label">Real-Time Pipeline</div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="section-label">What We Offer</div>
+    <h2 class="section-title">Four Pillars of Analysis</h2>
+    <p class="section-subtitle">Every company analyzed through four distinct world-class investment frameworks.</p>
+
+    <div class="features-grid">
+      <div class="feature-card" style="--card-accent: #0ea5e9;">
+        <div class="feature-icon" style="background:rgba(14,165,233,0.12);color:#0ea5e9;">🌐</div>
+        <div class="feature-name">Top-Down Analysis</div>
+        <div class="feature-desc">Macro-economic trends, sector positioning, market tailwinds, and competitive landscape
+          assessment from a macro-to-micro lens.</div>
+      </div>
+      <div class="feature-card" style="--card-accent: #7c3aed;">
+        <div class="feature-icon" style="background:rgba(124,58,237,0.12);color:#a78bfa;">🔬</div>
+        <div class="feature-name">Bottom-Up Analysis</div>
+        <div class="feature-desc">Deep dive into company fundamentals — segment revenue, profitability, MOAT, lifecycle
+          analysis, and stress simulations.</div>
+      </div>
+      <div class="feature-card" style="--card-accent: #10b981;">
+        <div class="feature-icon" style="background:rgba(16,185,129,0.12);color:#10b981;">📊</div>
+        <div class="feature-name">CANSLIM Framework</div>
+        <div class="feature-desc">William O'Neil's proven CANSLIM methodology scoring — Current earnings, Annual growth,
+          New catalysts, Supply, Leader, Institution, Market.</div>
+      </div>
+      <div class="feature-card" style="--card-accent: #f59e0b;">
+        <div class="feature-icon" style="background:rgba(245,158,11,0.12);color:#f59e0b;">💹</div>
+        <div class="feature-name">Financial Data</div>
+        <div class="feature-desc">Live yFinance data — Balance sheets, cash flows, income statements, ratios — quarterly
+          and annual, visualized interactively.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PIPELINE -->
+  <section class="pipeline">
+    <div class="pipeline-inner">
+      <div class="section-label">How It Works</div>
+      <h2 class="section-title" style="text-align:center;">Automated Research Pipeline</h2>
+
+      <div class="pipeline-steps">
+        <div class="pipeline-step">
+          <div class="step-dot"
+            style="background:rgba(14,165,233,0.15);border-color:rgba(14,165,233,0.4);color:#0ea5e9;">🔍</div>
+          <div class="step-name">Search & Crawl</div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-dot"
+            style="background:rgba(124,58,237,0.15);border-color:rgba(124,58,237,0.4);color:#a78bfa;">📰</div>
+          <div class="step-name">Article Collection</div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-dot" style="background:rgba(6,182,212,0.15);border-color:rgba(6,182,212,0.4);color:#06b6d4;">
+            💼</div>
+          <div class="step-name">Financial Fetch</div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-dot"
+            style="background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.4);color:#10b981;">🤖</div>
+          <div class="step-name">AI Suggestion</div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-dot"
+            style="background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.4);color:#f59e0b;">📋</div>
+          <div class="step-name">MongoDB Storage</div>
+        </div>
+        <div class="pipeline-step">
+          <div class="step-dot" style="background:rgba(239,68,68,0.15);border-color:rgba(239,68,68,0.4);color:#f87171;">
+            ✨</div>
+          <div class="step-name">Insights Delivered</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final-cta">
+    <div class="cta-card">
+      <h2 class="cta-title">Ready to Analyze?</h2>
+      <p class="cta-desc">Enter any company name and ticker symbol, and let the AI research pipeline do the rest.</p>
+      <a href="/analyze" class="btn-primary" style="display:inline-flex;">
+        <span>Start Your Analysis</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">⬡ Ravanan</div>
+    <div class="footer-text">AI-Powered Research Intelligence © 2026</div>
+  </footer>
+
+  <script>
+    // ── Particle Canvas ──
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const particles = Array.from({ length: 80 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.5 + 0.3,
+      dx: (Math.random() - 0.5) * 0.3,
+      dy: (Math.random() - 0.5) * 0.3,
+      alpha: Math.random() * 0.5 + 0.1,
+      color: Math.random() > 0.5 ? '14,165,233' : '124,58,237',
+    }));
+
+    function drawParticles() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.x += p.dx; p.y += p.dy;
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
+        ctx.fill();
+      });
+      requestAnimationFrame(drawParticles);
+    }
+    drawParticles();
+
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+
+    // Smooth scroll for "See How It Works"
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        document.querySelector(a.getAttribute('href'))?.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  </script>
+</body>
+
+</html>

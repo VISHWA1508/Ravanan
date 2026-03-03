@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>Ravanan — Research Results</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+
+        :root {
+            --bg: #020408;
+            --bg2: #060c14;
+            --blue: #0ea5e9;
+            --violet: #7c3aed;
+            --cyan: #06b6d4;
+            --emerald: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --pink: #ec4899;
+            --glass: rgba(6, 14, 26, 0.75);
+            --border: rgba(14, 165, 233, 0.14);
+            --t1: #f0f6ff;
+            --t2: #8ba5c4;
+            --t3: #3a5a7a;
+        }
+
+        html {
+            scroll-behavior: smooth
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--t1);
+            overflow-x: hidden
+        }
+
+        #cvs {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none
+        }
+
+        .grid {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            background-image: linear-gradient(rgba(14, 165, 233, .025)1px, transparent 1px), linear-gradient(90deg, rgba(14, 165, 233, .025)1px, transparent 1px);
+            background-size: 60px 60px
+        }
+
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            pointer-events: none;
+            filter: blur(100px);
+            z-index: 0
+        }
+
+        .orb1 {
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(14, 165, 233, .07), transparent 70%);
+            top: -300px;
+            right: -200px;
+            animation: dA 18s ease-in-out infinite
+        }
+
+        .orb2 {
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(124, 58, 237, .06), transparent 70%);
+            bottom: -200px;
+            left: -150px;
+            animation: dB 22s ease-in-out infinite
+        }
+
+        @keyframes dA {
+
+            0%,
+            100% {
+                transform: translate(0, 0)
+            }
+
+            50% {
+                transform: translate(-100px, 60px)
+            }
+        }
+
+        @keyframes dB {
+
+            0%,
+            100% {
+                transform: translate(0, 0)
+            }
+
+            50% {
+                transform: translate(80px, -50px)
+            }
+        }
+
+        /* NAV */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            padding: 16px 48px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(2, 4, 8, .7);
+            backdrop-filter: blur(24px);
+            border-bottom: 1px solid var(--border)
+        }
+
+        .nav-logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--blue), var(--violet));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent
+        }
+
+        .nav-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center
+        }
+
+        .nav-company {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .75rem;
+            color: var(--t2);
+            background: rgba(14, 165, 233, .08);
+            border: 1px solid rgba(14, 165, 233, .2);
+            padding: 5px 14px;
+            border-radius: 20px
+        }
+
+        .nav-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--t2);
+            font-size: .8rem;
+            font-weight: 500;
+            text-decoration: none;
+            background: transparent;
+            cursor: pointer;
+            transition: all .2s;
+            font-family: 'Inter', sans-serif
+        }
+
+        .nav-btn:hover {
+            color: var(--blue);
+            border-color: rgba(14, 165, 233, .4);
+            background: rgba(14, 165, 233, .05)
+        }
+
+        /* HERO */
+        .hero {
+            position: relative;
+            z-index: 1;
+            padding: 60px 48px 32px;
+            text-align: center
+        }
+
+        .hero-eyebrow {
+            font-size: .7rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--cyan);
+            font-weight: 600;
+            margin-bottom: 12px
+        }
+
+        .hero-company {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(2.5rem, 5vw, 4rem);
+            font-weight: 800;
+            letter-spacing: -2px;
+            margin-bottom: 8px
+        }
+
+        .hero-company span {
+            background: linear-gradient(135deg, var(--blue), var(--violet));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent
+        }
+
+        .hero-meta {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 12px
+        }
+
+        .meta-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: .78rem;
+            font-weight: 500
+        }
+
+        .pill-blue {
+            background: rgba(14, 165, 233, .1);
+            border: 1px solid rgba(14, 165, 233, .25);
+            color: var(--blue)
+        }
+
+        .pill-violet {
+            background: rgba(124, 58, 237, .1);
+            border: 1px solid rgba(124, 58, 237, .25);
+            color: #a78bfa
+        }
+
+        .pill-green {
+            background: rgba(16, 185, 129, .1);
+            border: 1px solid rgba(16, 185, 129, .25);
+            color: var(--emerald)
+        }
+
+        /* TABS */
+        .tabs-wrap {
+            position: relative;
+            z-index: 1;
+            padding: 24px 48px 0;
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto
+        }
+
+        .tabs-wrap::-webkit-scrollbar {
+            height: 0
+        }
+
+        .tab {
+            padding: 12px 24px;
+            border-radius: 12px 12px 0 0;
+            font-size: .85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+            border-bottom: none;
+            transition: all .25s;
+            white-space: nowrap;
+            color: var(--t3);
+            background: transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            bottom: -1px;
+            font-family: 'Inter', sans-serif
+        }
+
+        .tab:hover {
+            color: var(--t2);
+            background: rgba(14, 165, 233, .04)
+        }
+
+        .tab.active {
+            color: var(--t1);
+            background: rgba(6, 14, 26, .9);
+            border-color: var(--border);
+            border-bottom-color: var(--bg)
+        }
+
+        .tab .tab-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%
+        }
+
+        .tab-badge {
+            font-size: .65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700
+        }
+
+        /* CONTENT */
+        .content {
+            position: relative;
+            z-index: 1;
+            padding: 32px 48px 80px;
+            max-width: 1400px;
+            margin: 0 auto
+        }
+
+        .panel {
+            display: none
+        }
+
+        .panel.active {
+            display: block
+        }
+
+        /* ─── SUMMARY PANELS (Top-Down, Bottom-Up, CANSLIM) ─── */
+        .summary-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 32px
+        }
+
+        .summary-title-block {}
+
+        .summary-type-label {
+            font-size: .7rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 6px
+        }
+
+        .summary-h {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -1px
+        }
+
+        .summary-chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap
+        }
+
+        .chip {
+            font-size: .72rem;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px
+        }
+
+        /* Markdown render area */
+        .md-body {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px 44px;
+            backdrop-filter: blur(20px);
+            position: relative;
+            overflow: hidden;
+            line-height: 1.8;
+            color: var(--t2)
+        }
+
+        .md-body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent-color, var(--blue)), transparent)
+        }
+
+        .md-body h1,
+        .md-body h2,
+        .md-body h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            color: var(--t1);
+            letter-spacing: -.5px;
+            margin: 24px 0 12px
+        }
+
+        .md-body h1 {
+            font-size: 1.6rem
+        }
+
+        .md-body h2 {
+            font-size: 1.3rem;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border)
+        }
+
+        .md-body h3 {
+            font-size: 1.1rem;
+            color: var(--accent-color, var(--blue))
+        }
+
+        .md-body p {
+            margin-bottom: 14px;
+            color: var(--t2)
+        }
+
+        .md-body ul,
+        .md-body ol {
+            padding-left: 24px;
+            margin-bottom: 14px
+        }
+
+        .md-body li {
+            margin-bottom: 6px;
+            color: var(--t2)
+        }
+
+        .md-body li::marker {
+            color: var(--accent-color, var(--blue))
+        }
+
+        .md-body strong {
+            color: var(--t1);
+            font-weight: 600
+        }
+
+        .md-body em {
+            color: var(--accent-color, var(--blue));
+            font-style: normal;
+            font-weight: 500
+        }
+
+        .md-body code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .82rem;
+            background: rgba(14, 165, 233, .08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--cyan)
+        }
+
+        .md-body hr {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 24px 0
+        }
+
+        .md-body blockquote {
+            border-left: 3px solid var(--accent-color, var(--blue));
+            padding-left: 16px;
+            color: var(--t3);
+            font-style: italic
+        }
+
+        .md-body table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px
+        }
+
+        .md-body th {
+            background: rgba(14, 165, 233, .08);
+            color: var(--t1);
+            padding: 10px 14px;
+            text-align: left;
+            font-size: .82rem;
+            border: 1px solid var(--border)
+        }
+
+        .md-body td {
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            color: var(--t2);
+            font-size: .82rem
+        }
+
+        .md-body tr:hover td {
+            background: rgba(14, 165, 233, .03)
+        }
+
+        /* CANSLIM FACTORS */
+        .canslim-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px
+        }
+
+        .canslim-card {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            backdrop-filter: blur(20px);
+            transition: all .3s;
+            cursor: default
+        }
+
+        .canslim-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, .4)
+        }
+
+        .factor-letter {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 4px
+        }
+
+        .factor-name {
+            font-size: .78rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--t3);
+            margin-bottom: 10px;
+            font-weight: 600
+        }
+
+        .factor-score {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px
+        }
+
+        .score-bar {
+            flex: 1;
+            height: 6px;
+            background: rgba(14, 165, 233, .08);
+            border-radius: 3px;
+            overflow: hidden
+        }
+
+        .score-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 1s cubic-bezier(.4, 0, .2, 1)
+        }
+
+        .factor-desc {
+            font-size: .8rem;
+            color: var(--t3);
+            line-height: 1.6
+        }
+
+        /* ─── FINANCIAL DATA PANEL ─── */
+        .fin-sub-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap
+        }
+
+        .fin-tab {
+            padding: 8px 18px;
+            border-radius: 8px;
+            font-size: .78rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--t3);
+            transition: all .2s;
+            font-family: 'Inter', sans-serif
+        }
+
+        .fin-tab.active {
+            background: rgba(14, 165, 233, .12);
+            border-color: rgba(14, 165, 233, .35);
+            color: var(--t1)
+        }
+
+        .fin-panel {
+            display: none
+        }
+
+        .fin-panel.active {
+            display: block
+        }
+
+        .chart-card {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(20px);
+            position: relative
+        }
+
+        .chart-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(14, 165, 233, .4), transparent)
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px
+        }
+
+        .chart-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px
+        }
+
+        .chart-badge {
+            font-size: .65rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 700;
+            background: rgba(14, 165, 233, .1);
+            color: var(--blue);
+            border: 1px solid rgba(14, 165, 233, .2)
+        }
+
+        .chart-area {
+            height: 280px;
+            position: relative
+        }
+
+        /* Charts in 2-col */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px
+        }
+
+        @media(max-width:900px) {
+            .charts-grid {
+                grid-template-columns: 1fr
+            }
+        }
+
+        /* LOADING STATE */
+        .loading-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 80px;
+            color: var(--t3)
+        }
+
+        .loading-ring {
+            width: 48px;
+            height: 48px;
+            border: 3px solid rgba(14, 165, 233, .1);
+            border-top-color: var(--blue);
+            border-radius: 50%;
+            animation: spin .8s linear infinite
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg)
+            }
+        }
+
+        /* ERROR */
+        .error-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--t3)
+        }
+
+        .error-icon {
+            font-size: 3rem;
+            margin-bottom: 12px
+        }
+
+        /* EMPTY */
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--t3);
+            font-size: .9rem
+        }
+
+        /* Animate in */
+        .fade-up {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity .5s ease, transform .5s ease
+        }
+
+        .fade-up.in {
+            opacity: 1;
+            transform: translateY(0)
+        }
+
+        @media(max-width:768px) {
+            nav {
+                padding: 14px 20px
+            }
+
+            .hero {
+                padding: 40px 20px 24px
+            }
+
+            .tabs-wrap {
+                padding: 16px 20px 0
+            }
+
+            .content {
+                padding: 24px 20px 60px
+            }
+
+            .md-body {
+                padding: 24px 20px
+            }
+
+            .canslim-grid {
+                grid-template-columns: 1fr
+            }
+        }
+
+        /* ── CACHE BANNER ── */
+        .cache-banner {
+            position: relative;
+            z-index: 1;
+            margin: 0 48px 0;
+            padding: 14px 20px 14px 20px;
+            background: rgba(245, 158, 11, 0.07);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            animation: bannerSlide .5s ease both;
+        }
+
+        @keyframes bannerSlide {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .cache-banner.hidden {
+            display: none;
+        }
+
+        .banner-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+
+        .banner-text {
+            flex: 1;
+        }
+
+        .banner-title {
+            font-size: .82rem;
+            font-weight: 700;
+            color: #fbbf24;
+            margin-bottom: 2px;
+        }
+
+        .banner-sub {
+            font-size: .75rem;
+            color: #8ba5c4;
+            line-height: 1.4;
+        }
+
+        .banner-badge {
+            font-size: .7rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #f59e0b;
+            white-space: nowrap;
+        }
+
+        .banner-fresh-link {
+            font-size: .75rem;
+            font-weight: 600;
+            color: #0ea5e9;
+            text-decoration: none;
+            border: 1px solid rgba(14, 165, 233, .3);
+            padding: 5px 12px;
+            border-radius: 8px;
+            white-space: nowrap;
+            transition: all .2s;
+        }
+
+        .banner-fresh-link:hover {
+            background: rgba(14, 165, 233, .08);
+            border-color: rgba(14, 165, 233, .6);
+        }
+
+        @media(max-width:768px) {
+            .cache-banner {
+                margin: 0 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="cvs"></canvas>
+    <div class="grid"></div>
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+
+    <!-- NAV -->
+    <nav>
+        <div class="nav-logo">⬡ Ravanan</div>
+        <div class="nav-actions">
+            <div class="nav-company" id="nav-company-pill">—</div>
+            <a href="/analyze" class="nav-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M12 5v14M5 12l7 7 7-7" />
+                </svg>
+                New Analysis
+            </a>
+            <a href="/" class="nav-btn">🏠 Home</a>
+        </div>
+    </nav>
+
+    <!-- HERO -->
+    <div class="hero fade-up" id="hero-section">
+        <div class="hero-eyebrow">Research Report</div>
+        <div class="hero-company"><span id="hero-company">Loading...</span></div>
+        <div class="hero-meta">
+            <div class="meta-pill pill-blue" id="meta-ticker">—</div>
+            <div class="meta-pill pill-violet" id="meta-articles">— Articles</div>
+            <div class="meta-pill pill-green" id="meta-date">—</div>
+        </div>
+    </div>
+
+    <!-- CACHE BANNER (shown only when ?cached=true) -->
+    <div class="cache-banner hidden" id="cache-banner">
+        <div class="banner-icon">⚡</div>
+        <div class="banner-text">
+            <div class="banner-title">Showing Cached Data</div>
+            <div class="banner-sub" id="banner-sub">This report uses data analyzed previously.</div>
+        </div>
+        <div class="banner-badge" id="banner-badge">Cached</div>
+        <a href="/analyze" class="banner-fresh-link">🔄 Run Fresh Analysis</a>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs-wrap" id="tabs-nav">
+        <button class="tab active" data-tab="topdown" onclick="switchTab('topdown')">
+            <div class="tab-dot" style="background:#0ea5e9"></div>🌐 Top-Down
+        </button>
+        <button class="tab" data-tab="bottomup" onclick="switchTab('bottomup')">
+            <div class="tab-dot" style="background:#7c3aed"></div>🔬 Bottom-Up
+        </button>
+        <button class="tab" data-tab="canslim" onclick="switchTab('canslim')">
+            <div class="tab-dot" style="background:#10b981"></div>📊 CANSLIM
+        </button>
+        <button class="tab" data-tab="financial" onclick="switchTab('financial')">
+            <div class="tab-dot" style="background:#f59e0b"></div>💹 Financial Data
+        </button>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+        <!-- TOP-DOWN -->
+        <div class="panel active" id="panel-topdown">
+            <div class="summary-header fade-up">
+                <div class="summary-title-block">
+                    <div class="summary-type-label" style="color:#0ea5e9">Top-Down Analysis</div>
+                    <div class="summary-h">Macro → Micro View</div>
+                </div>
+                <div class="summary-chips" id="topdown-chips"></div>
+            </div>
+            <div class="md-body fade-up" id="topdown-body" style="--accent-color:#0ea5e9">
+                <div class="loading-state">
+                    <div class="loading-ring"></div>Loading analysis...
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM-UP -->
+        <div class="panel" id="panel-bottomup">
+            <div class="summary-header fade-up">
+                <div class="summary-title-block">
+                    <div class="summary-type-label" style="color:#7c3aed">Bottom-Up Analysis</div>
+                    <div class="summary-h">Company Deep Dive</div>
+                </div>
+                <div class="summary-chips" id="bottomup-chips"></div>
+            </div>
+            <div class="md-body fade-up" id="bottomup-body" style="--accent-color:#7c3aed">
+                <div class="loading-state">
+                    <div class="loading-ring"></div>Loading analysis...
+                </div>
+            </div>
+        </div>
+
+        <!-- CANSLIM -->
+        <div class="panel" id="panel-canslim">
+            <div class="summary-header fade-up">
+                <div class="summary-title-block">
+                    <div class="summary-type-label" style="color:#10b981">CANSLIM Framework</div>
+                    <div class="summary-h">Growth Methodology Score</div>
+                </div>
+                <div class="summary-chips" id="canslim-chips"></div>
+            </div>
+            <div class="canslim-grid fade-up" id="canslim-factors"></div>
+            <div class="md-body fade-up" id="canslim-body" style="--accent-color:#10b981">
+                <div class="loading-state">
+                    <div class="loading-ring"></div>Loading CANSLIM analysis...
+                </div>
+            </div>
+        </div>
+
+        <!-- FINANCIAL DATA -->
+        <div class="panel" id="panel-financial">
+            <div class="summary-header fade-up">
+                <div class="summary-title-block">
+                    <div class="summary-type-label" style="color:#f59e0b">Financial Data</div>
+                    <div class="summary-h">Charts & Statements</div>
+                </div>
+            </div>
+
+            <!-- Sub-tabs -->
+            <div class="fin-sub-tabs fade-up">
+                <button class="fin-tab active" onclick="switchFinTab('bs')">📊 Balance Sheet</button>
+                <button class="fin-tab" onclick="switchFinTab('cf')">💰 Cash Flow</button>
+                <button class="fin-tab" onclick="switchFinTab('inc')">📈 Financials</button>
+            </div>
+
+            <!-- Balance Sheet -->
+            <div class="fin-panel active" id="fin-bs">
+                <div class="charts-grid">
+                    <div class="chart-card fade-up">
+                        <div class="chart-header">
+                            <div class="chart-title">📊 Annual Balance Sheet <span class="chart-badge">Annual</span>
+                            </div>
+                        </div>
+                        <div class="chart-area"><canvas id="chart-bs-annual"></canvas></div>
+                    </div>
+                    <div class="chart-card fade-up">
+                        <div class="chart-header">
+                            <div class="chart-title">📊 Quarterly Balance Sheet <span
+                                    class="chart-badge">Quarterly</span></div>
+                        </div>
+                        <div class="chart-area"><canvas id="chart-bs-quarterly"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cash Flow -->
+            <div class="fin-panel" id="fin-cf">
+                <div class="charts-grid">
+                    <div class="chart-card fade-up">
+                        <div class="chart-header">
+                            <div class="chart-title">💰 Annual Cash Flow <span class="chart-badge">Annual</span></div>
+                        </div>
+                        <div class="chart-area"><canvas id="chart-cf-annual"></canvas></div>
+                    </div>
+                    <div class="chart-card fade-up">
+                        <div class="chart-header">
+                            <div class="chart-title">💰 Quarterly Cash Flow <span class="chart-badge">Quarterly</span>
+                            </div>
+                        </div>
+                        <div class="chart-area"><canvas id="chart-cf-quarterly"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financials -->
+            <div class="fin-panel" id="fin-inc">
+                <div class="charts-grid">
+                    <div class="chart-card fade-up">
+                        <div class="chart-header">
+                            <div class="chart-title">📈 Annual Financials <span class="chart-badge">Annual</span></div>
+                        </div>
+                        <div class="chart-area"><canvas id="chart-inc-annual"></canvas></div>
+                    </div>
+                    <div class="chart-card fade-up">
+                        <div class="chart-header">
+                            <div class="chart-title">📈 Quarterly Financials <span class="chart-badge">Quarterly</span>
+                            </div>
+                        </div>
+                        <div class="chart-area"><canvas id="chart-inc-quarterly"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </div><!-- end financial panel -->
+
+    </div><!-- end content -->
+
+    <script>
+        // ── Particles ──
+        const cvs = document.getElementById('cvs'), ctx = cvs.getContext('2d');
+        function resize() { cvs.width = innerWidth; cvs.height = innerHeight } resize(); window.addEventListener('resize', resize);
+        const pts = Array.from({ length: 50 }, () => ({ x: Math.random() * cvs.width, y: Math.random() * cvs.height, vx: (Math.random() - .5) * .15, vy: (Math.random() - .5) * .15, r: Math.random() + .3, a: Math.random() * .3 + .04, col: Math.random() > .5 ? '14,165,233' : '124,58,237' }));
+        (function draw() { ctx.clearRect(0, 0, cvs.width, cvs.height); pts.forEach(p => { p.x += p.vx; p.y += p.vy; if (p.x < 0) p.x = cvs.width; if (p.x > cvs.width) p.x = 0; if (p.y < 0) p.y = cvs.height; if (p.y > cvs.height) p.y = 0; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fillStyle = `rgba(${p.col},${p.a})`; ctx.fill(); }); requestAnimationFrame(draw); })();
+
+        // ── Animate in ──
+        setTimeout(() => { document.querySelectorAll('.fade-up').forEach((el, i) => { setTimeout(() => el.classList.add('in'), i * 80) }) }, 100);
+
+        // ── Tabs ──
+        function switchTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+            document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+            setTimeout(() => { document.querySelectorAll('#panel-' + name + ' .fade-up').forEach((el, i) => { el.classList.remove('in'); setTimeout(() => el.classList.add('in'), i * 60) }) }, 50);
+        }
+        function switchFinTab(name) {
+            document.querySelectorAll('.fin-tab').forEach((t, i) => t.classList.toggle('active', ['bs', 'cf', 'inc'][i] === name));
+            document.querySelectorAll('.fin-panel').forEach(p => p.classList.toggle('active', p.id === 'fin-' + name));
+        }
+
+        // ── Params ──
+        const params = new URLSearchParams(location.search);
+        const company = params.get('company') || 'Company';
+        const ticker = params.get('ticker') || 'TICK';
+        const isCached = params.get('cached') === 'true';
+        const cachedDateStr = params.get('cachedDate');
+        document.getElementById('hero-company').textContent = company;
+        document.getElementById('nav-company-pill').textContent = ticker;
+        document.getElementById('meta-ticker').textContent = '📈 ' + ticker;
+
+        // ── Cache Banner ──
+        if (isCached && cachedDateStr) {
+            const cachedDate = new Date(cachedDateStr);
+            const now = new Date();
+            const diffMs = now - cachedDate;
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            const ageStr = diffDays > 0
+                ? `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+                : diffHours > 0
+                    ? `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`
+                    : 'Less than an hour ago';
+            const formattedDate = cachedDate.toLocaleDateString('en-IN', {
+                weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+            document.getElementById('banner-sub').textContent =
+                `Data analyzed on ${formattedDate}. To get the latest analysis, click "Run Fresh Analysis".`;
+            document.getElementById('banner-badge').textContent = `📅 ${ageStr}`;
+            document.getElementById('cache-banner').classList.remove('hidden');
+        }
+
+        // ── Chart defaults ──
+        Chart.defaults.color = '#8ba5c4';
+        Chart.defaults.borderColor = 'rgba(14,165,233,0.1)';
+        Chart.defaults.font = { family: "'Inter',sans-serif", size: 11 };
+
+        function makeChartOpts(type, labels, datasets, opts = {}) {
+            return {
+                type, data: { labels, datasets }, options: {
+                    responsive: true, maintainAspectRatio: false,
+                    animation: { duration: 1200, easing: 'easeInOutQuart' },
+                    plugins: {
+                        legend: { labels: { color: '#8ba5c4', boxWidth: 12, padding: 16 } },
+                        tooltip: { backgroundColor: 'rgba(6,14,26,.95)', borderColor: 'rgba(14,165,233,.3)', borderWidth: 1, titleColor: '#f0f6ff', bodyColor: '#8ba5c4', padding: 12, cornerRadius: 10, callbacks: { label: ctx => ' ' + ctx.dataset.label + ': ' + fmtNum(ctx.raw) } }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(14,165,233,.05)' }, ticks: { color: '#3a5a7a', maxRotation: 30 } },
+                        y: { grid: { color: 'rgba(14,165,233,.05)' }, ticks: { color: '#3a5a7a', callback: v => fmtNum(v) } }
+                    },
+                    ...opts
+                }
+            };
+        }
+
+        function fmtNum(v) {
+            if (v == null || isNaN(v)) return '—';
+            const abs = Math.abs(v);
+            if (abs >= 1e12) return (v / 1e12).toFixed(2) + 'T';
+            if (abs >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+            if (abs >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+            if (abs >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+            return v.toFixed ? v.toFixed(2) : v;
+        }
+
+        const GRAD_BLUE = ['rgba(14,165,233,0.8)', 'rgba(14,165,233,0.6)', 'rgba(14,165,233,0.4)'];
+        const GRAD_VIOLET = ['rgba(124,58,237,0.8)', 'rgba(124,58,237,0.6)', 'rgba(124,58,237,0.4)'];
+        const GRAD_EMERALD = ['rgba(16,185,129,0.8)', 'rgba(16,185,129,0.6)', 'rgba(16,185,129,0.4)'];
+        const GRAD_AMBER = ['rgba(245,158,11,0.8)', 'rgba(245,158,11,0.6)', 'rgba(245,158,11,0.4)'];
+
+        let chartInstances = {};
+
+        function buildChart(id, type, labels, datasets, opts = {}) {
+            const canvas = document.getElementById(id);
+            if (!canvas) return;
+            if (chartInstances[id]) chartInstances[id].destroy();
+            const cfg = makeChartOpts(type, labels, datasets, opts);
+            chartInstances[id] = new Chart(canvas, cfg);
+        }
+
+        // ── Parse financial table data from MongoDB flat dict ──
+        function parseFinStatement(raw, keyMetrics) {
+            if (!raw) return { labels: [], series: {} };
+            const dates = Object.keys(raw).sort();
+            const shortDates = dates.map(d => { try { return new Date(parseInt(d)).toLocaleDateString('en-IN', { month: 'short', year: '2-digit' }) } catch { return d.substring(0, 10) } });
+            const series = {};
+            keyMetrics.forEach(metric => {
+                series[metric] = dates.map(d => raw[d] && raw[d][metric] != null ? parseFloat(raw[d][metric]) : null);
+            });
+            return { labels: shortDates, series };
+        }
+
+        function makeLineDataset(label, data, color, fill = true) {
+            return { label, data, borderColor: color, backgroundColor: fill ? color.replace(')', ',0.08)').replace('rgb', 'rgba') : 'transparent', borderWidth: 2.5, pointBackgroundColor: color, pointRadius: 4, pointHoverRadius: 7, tension: .35, fill };
+        }
+
+        function makeBarDataset(label, data, color) {
+            return { label, data, backgroundColor: color.replace(')', ',0.65)').replace('rgb', 'rgba'), borderColor: color, borderWidth: 1.5, borderRadius: 6, borderSkipped: false };
+        }
+
+        // ── Build all financial charts ──
+        function buildFinancialCharts(fin) {
+            const raw = fin.financial_data_raw || {};
+
+            // BALANCE SHEET ANNUAL
+            try {
+                const bs = raw.balance_sheet;
+                if (bs) {
+                    const { labels, series } = parseFinStatement(bs, ['Total Assets', 'Total Liabilities Net Minority Interest', 'Total Equity Gross Minority Interest', 'Cash And Cash Equivalents']);
+                    buildChart('chart-bs-annual', 'bar', labels, [
+                        makeBarDataset('Total Assets', series['Total Assets'], 'rgb(14,165,233)'),
+                        makeBarDataset('Total Liabilities', series['Total Liabilities Net Minority Interest'], 'rgb(124,58,237)'),
+                        makeBarDataset('Total Equity', series['Total Equity Gross Minority Interest'], 'rgb(16,185,129)'),
+                    ]);
+                }
+            } catch (e) { console.warn('BS annual chart err', e) }
+
+            // BALANCE SHEET QUARTERLY
+            try {
+                const qbs = raw.quarterly_balance_sheet;
+                if (qbs) {
+                    const { labels, series } = parseFinStatement(qbs, ['Total Assets', 'Total Liabilities Net Minority Interest', 'Cash And Cash Equivalents', 'Total Debt']);
+                    buildChart('chart-bs-quarterly', 'line', labels, [
+                        makeLineDataset('Total Assets', series['Total Assets'], 'rgb(14,165,233)'),
+                        makeLineDataset('Total Liabilities', series['Total Liabilities Net Minority Interest'], 'rgb(239,68,68)', false),
+                        makeLineDataset('Cash', series['Cash And Cash Equivalents'], 'rgb(16,185,129)', false),
+                    ]);
+                }
+            } catch (e) { console.warn('BS quarterly chart err', e) }
+
+            // CASHFLOW ANNUAL
+            try {
+                const cf = raw.cashflow;
+                if (cf) {
+                    const { labels, series } = parseFinStatement(cf, ['Operating Cash Flow', 'Free Cash Flow', 'Capital Expenditure', 'Investing Cash Flow']);
+                    buildChart('chart-cf-annual', 'bar', labels, [
+                        makeBarDataset('Operating Cash Flow', series['Operating Cash Flow'], 'rgb(16,185,129)'),
+                        makeBarDataset('Free Cash Flow', series['Free Cash Flow'], 'rgb(6,182,212)'),
+                        makeBarDataset('Capital Expenditure', series['Capital Expenditure'], 'rgb(239,68,68)'),
+                    ]);
+                }
+            } catch (e) { console.warn('CF annual chart err', e) }
+
+            // CASHFLOW QUARTERLY
+            try {
+                const qcf = raw.quarterly_cashflow;
+                if (qcf) {
+                    const { labels, series } = parseFinStatement(qcf, ['Operating Cash Flow', 'Free Cash Flow', 'Capital Expenditure']);
+                    buildChart('chart-cf-quarterly', 'line', labels, [
+                        makeLineDataset('Operating CF', series['Operating Cash Flow'], 'rgb(16,185,129)'),
+                        makeLineDataset('Free CF', series['Free Cash Flow'], 'rgb(6,182,212)', false),
+                        makeLineDataset('CapEx', series['Capital Expenditure'], 'rgb(239,68,68)', false),
+                    ]);
+                }
+            } catch (e) { console.warn('CF qtrly chart err', e) }
+
+            // FINANCIALS ANNUAL
+            try {
+                const inc = raw.financials;
+                if (inc) {
+                    const { labels, series } = parseFinStatement(inc, ['Total Revenue', 'Gross Profit', 'Operating Income', 'Net Income', 'EBITDA']);
+                    buildChart('chart-inc-annual', 'bar', labels, [
+                        makeBarDataset('Total Revenue', series['Total Revenue'], 'rgb(14,165,233)'),
+                        makeBarDataset('Gross Profit', series['Gross Profit'], 'rgb(124,58,237)'),
+                        makeBarDataset('Operating Income', series['Operating Income'], 'rgb(6,182,212)'),
+                        makeBarDataset('Net Income', series['Net Income'], 'rgb(16,185,129)'),
+                    ]);
+                }
+            } catch (e) { console.warn('Inc annual chart err', e) }
+
+            // FINANCIALS QUARTERLY
+            try {
+                const qinc = raw.quarterly_financials;
+                if (qinc) {
+                    const { labels, series } = parseFinStatement(qinc, ['Total Revenue', 'Net Income', 'Operating Income', 'EBITDA']);
+                    buildChart('chart-inc-quarterly', 'line', labels, [
+                        makeLineDataset('Total Revenue', series['Total Revenue'], 'rgb(14,165,233)'),
+                        makeLineDataset('Net Income', series['Net Income'], 'rgb(16,185,129)', false),
+                        makeLineDataset('Operating Income', series['Operating Income'], 'rgb(245,158,11)', false),
+                    ]);
+                }
+            } catch (e) { console.warn('Inc qtrly chart err', e) }
+        }
+
+        // ── Render markdown ──
+        function renderMd(el, text) {
+            if (!text) { el.innerHTML = '<div class="empty-state">No summary available.</div>'; return }
+            el.innerHTML = marked.parse(text);
+        }
+
+        // ── Render chips ──
+        function makeChip(text, colorClass) {
+            return `<div class="chip ${colorClass}" style="background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.25);color:#0ea5e9">${text}</div>`;
+        }
+
+        // ── CANSLIM factors ──
+        const CANSLIM_DEF = {
+            C: { label: 'Current Earnings', color: '#0ea5e9', colorRgb: '14,165,233' },
+            A: { label: 'Annual Earnings Growth', color: '#7c3aed', colorRgb: '124,58,237' },
+            N: { label: 'New Products/Management', color: '#06b6d4', colorRgb: '6,182,212' },
+            S: { label: 'Supply & Demand', color: '#10b981', colorRgb: '16,185,129' },
+            L: { label: 'Leader or Laggard', color: '#f59e0b', colorRgb: '245,158,11' },
+            I: { label: 'Institutional Sponsorship', color: '#ec4899', colorRgb: '236,72,153' },
+            M: { label: 'Market Direction', color: '#8b5cf6', colorRgb: '139,92,246' },
+        };
+
+        function renderCanslimFactors(factors) {
+            const el = document.getElementById('canslim-factors');
+            if (!factors || typeof factors !== 'object') { el.innerHTML = ''; return }
+            el.innerHTML = '';
+            Object.entries(CANSLIM_DEF).forEach(([letter, def]) => {
+                const factor = factors[letter] || factors[letter.toLowerCase()] || null;
+                const score = factor?.score ?? factor?.rating ?? null;
+                const pct = score != null ? Math.min(100, Math.max(0, parseFloat(score) * 10)) : 50;
+                const desc = factor?.analysis || factor?.summary || factor?.description || '—';
+                el.innerHTML += `
+    <div class="canslim-card" style="border-color:rgba(${def.colorRgb},.2)">
+      <div class="factor-letter" style="color:${def.color}">${letter}</div>
+      <div class="factor-name">${def.label}</div>
+      ${score != null ? `<div class="factor-score"><span style="color:${def.color};font-weight:700;font-size:.9rem">${score}/10</span><div class="score-bar"><div class="score-fill" style="width:${pct}%;background:linear-gradient(90deg,${def.color},rgba(${def.colorRgb},.4))"></div></div></div>` : ''}
+      <div class="factor-desc">${typeof desc === 'string' ? desc.substring(0, 160) + '...' : ''}</div>
+    </div>`;
+            });
+        }
+
+        // ── Fetch and render everything ──
+        async function loadResults() {
+            try {
+                const res = await fetch(`/api/results?company=${encodeURIComponent(company)}`);
+                const data = await res.json();
+
+                if (data.error) { throw new Error(data.error) }
+
+                // Meta
+                const topdown = data.top_down;
+                const bottomup = data.bottom_up;
+                const canslim = data.canslim;
+                const financial = data.financial;
+
+                // Common meta
+                const articlesUsed = (topdown || bottomup || canslim)?.articles_used || '—';
+                const summarizedAt = (topdown || bottomup || canslim)?.summarized_at;
+                document.getElementById('meta-articles').textContent = '📰 ' + articlesUsed + ' Articles';
+                if (summarizedAt) {
+                    const d = new Date(summarizedAt);
+                    document.getElementById('meta-date').textContent = '📅 ' + d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+
+                // TOP-DOWN
+                if (topdown?.summary) {
+                    renderMd(document.getElementById('topdown-body'), topdown.summary);
+                    document.getElementById('topdown-chips').innerHTML =
+                        `<div class="chip" style="background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.25);color:#0ea5e9">${topdown.analysis_mode || 'Hybrid'}</div>
+         <div class="chip" style="background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.25);color:#06b6d4">${topdown.chunk_model || 'Gemma'}</div>`;
+                } else { document.getElementById('topdown-body').innerHTML = '<div class="empty-state">No top-down analysis found in the database.</div>' }
+
+                // BOTTOM-UP
+                if (bottomup?.summary) {
+                    renderMd(document.getElementById('bottomup-body'), bottomup.summary);
+                    document.getElementById('bottomup-chips').innerHTML =
+                        `<div class="chip" style="background:rgba(124,58,237,.1);border:1px solid rgba(124,58,237,.25);color:#a78bfa">${bottomup.analysis_mode || 'Hybrid'}</div>
+         <div class="chip" style="background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.25);color:#06b6d4">${bottomup.articles_used || '—'} Articles</div>`;
+                } else { document.getElementById('bottomup-body').innerHTML = '<div class="empty-state">No bottom-up analysis found in the database.</div>' }
+
+                // CANSLIM
+                if (canslim) {
+                    renderCanslimFactors(canslim.canslim_factors || canslim.factors);
+                    renderMd(document.getElementById('canslim-body'), canslim.summary);
+                    document.getElementById('canslim-chips').innerHTML =
+                        `<div class="chip" style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);color:#10b981">${canslim.analysis_type || 'CANSLIM'}</div>`;
+                } else { document.getElementById('canslim-body').innerHTML = '<div class="empty-state">No CANSLIM analysis found in the database.</div>' }
+
+                // FINANCIAL
+                if (financial) {
+                    buildFinancialCharts(financial);
+                } else {
+                    ['chart-bs-annual', 'chart-bs-quarterly', 'chart-cf-annual', 'chart-cf-quarterly', 'chart-inc-annual', 'chart-inc-quarterly'].forEach(id => {
+                        const c = document.getElementById(id);
+                        if (c) c.closest('.chart-card').innerHTML += '<div class="empty-state" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">No financial data found</div>';
+                    });
+                }
+
+            } catch (err) {
+                console.error(err);
+                ['topdown-body', 'bottomup-body', 'canslim-body'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = `<div class="error-state"><div class="error-icon">⚠️</div><p>${err.message}</p></div>`;
+                });
+            }
+        }
+
+        loadResults();
+    </script>
+</body>
+
+</html>
