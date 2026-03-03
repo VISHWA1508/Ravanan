@@ -2,7 +2,7 @@ import logging
 import os
 import random
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import pandas as pd
 
 from dotenv import load_dotenv
@@ -11,38 +11,130 @@ from langchain.schema.output_parser import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pymongo import MongoClient
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Setup detailed logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 # Load environment variables
 load_dotenv()
 
-def get_random_api_key(key_name):
-    """Get a random API key from an array stored in .env file."""
-    try:
-        key_str = os.getenv(key_name)
-        if not key_str:
-            raise ValueError(f"No {key_name} found in .env file")
+class TokenTracker:
+    """Track token usage per API key for free tier management."""
+    # Free tier limits: 15,000 tokens/min per model
+    FREE_TIER_LIMIT = 15000
+    RESET_INTERVAL = 60  # seconds
+    
+    def __init__(self):
+        self.key_usage = {}  # {key_index: {tokens: int, timestamp: datetime}}
+        self.request_times = {}  # Track request times for rate limiting
         
-        # Remove brackets and split by comma
+    def estimate_tokens(self, text):
+        """Rough estimate of tokens based on text length (1 token ≈ 4 chars)."""
+        return max(1, len(str(text)) // 4)
+    
+    def get_key_usage(self, key_index):
+        """Get current token usage for a key."""
+        if key_index not in self.key_usage:
+            self.key_usage[key_index] = {"tokens": 0, "timestamp": datetime.now()}
+        
+        # Reset if window expired
+        current_time = datetime.now()
+        usage_data = self.key_usage[key_index]
+        if (current_time - usage_data["timestamp"]).total_seconds() > self.RESET_INTERVAL:
+            logger.info(f"🔄 Token window reset for key #{key_index + 1}")
+            usage_data["tokens"] = 0
+            usage_data["timestamp"] = current_time
+        
+        return usage_data["tokens"]
+    
+    def add_usage(self, key_index, tokens):
+        """Add token usage for a key."""
+        if key_index not in self.key_usage:
+            self.key_usage[key_index] = {"tokens": 0, "timestamp": datetime.now()}
+        
+        self.key_usage[key_index]["tokens"] += tokens
+        current_usage = self.key_usage[key_index]["tokens"]
+        logger.debug(f"📊 Key #{key_index + 1} usage: {current_usage}/{self.FREE_TIER_LIMIT} tokens")
+        
+        # Warn if approaching limit
+        if current_usage > self.FREE_TIER_LIMIT * 0.8:
+            logger.warning(f"⚠️  Key #{key_index + 1} approaching limit: {current_usage}/{self.FREE_TIER_LIMIT}")
+    
+    def is_key_available(self, key_index):
+        """Check if key is under quota."""
+        return self.get_key_usage(key_index) < self.FREE_TIER_LIMIT
+    
+    def get_wait_time(self, key_index):
+        """Calculate wait time until token window resets."""
+        if key_index not in self.key_usage:
+            return 0
+        
+        usage_data = self.key_usage[key_index]
+        elapsed = (datetime.now() - usage_data["timestamp"]).total_seconds()
+        wait = max(0, self.RESET_INTERVAL - elapsed)
+        return wait
+
+class APIKeyManager:
+    """Manages API keys and switches when quota is exceeded."""
+    def __init__(self, key_name, token_tracker=None):
+        self.key_name = key_name
+        self.keys = self._load_keys()
+        self.current_index = random.randint(0, len(self.keys) - 1)
+        self.failed_keys = set()
+        self.token_tracker = token_tracker or TokenTracker()
+        logger.info(f"✅ Loaded {len(self.keys)} {key_name} keys")
+    
+    def _load_keys(self):
+        """Load all API keys from .env file."""
+        key_str = os.getenv(self.key_name)
+        if not key_str:
+            raise ValueError(f"No {self.key_name} found in .env file")
         key_str = key_str.strip('[]')
         keys = [k.strip() for k in key_str.split(',') if k.strip()]
-        
         if not keys:
-            raise ValueError(f"No valid {key_name} keys found in .env file")
+            raise ValueError(f"No valid {self.key_name} keys found in .env file")
+        return keys
+    
+    def get_current_key(self):
+        """Get the current API key."""
+        return self.keys[self.current_index]
+    
+    def switch_key(self):
+        """Switch to the next available API key."""
+        self.failed_keys.add(self.current_index)
+        logger.warning(f"⚠️  Key #{self.current_index + 1} marked as failed (quota exceeded)")
         
-        return random.choice(keys)
-    except Exception as e:
-        logging.error(f"❌ Error getting random API key for {key_name}: {e}")
-        raise
+        # Find available keys based on token usage
+        available_indices = [i for i in range(len(self.keys)) 
+                           if i not in self.failed_keys and self.token_tracker.is_key_available(i)]
+        
+        if not available_indices:
+            # Try any non-failed key and wait if needed
+            available_indices = [i for i in range(len(self.keys)) if i not in self.failed_keys]
+            if available_indices:
+                self.current_index = available_indices[0]
+                wait_time = self.token_tracker.get_wait_time(self.current_index)
+                if wait_time > 0:
+                    logger.warning(f"⏳ All keys approaching quota. Waiting {wait_time:.1f}s for reset...")
+                    time.sleep(wait_time + 2)  # Add buffer
+            else:
+                raise RuntimeError(f"❌ All {self.key_name} keys exhausted. Please add more keys to .env")
+        else:
+            self.current_index = random.choice(available_indices)
+        
+        logger.info(f"🔄 Switched to {self.key_name} #{self.current_index + 1}")
+        return self.get_current_key()
 
-# Get random Google API key
-try:
-    GOOGLE_API_KEY = get_random_api_key("GOOGLE_API_KEY")
-    logging.info("✅ Successfully loaded random Google API key")
-except Exception as e:
-    logging.error(f"❌ Error loading Google API key: {e}")
-    raise
+# Initialize token tracker and API key manager
+token_tracker = TokenTracker()
+google_key_manager = APIKeyManager("GOOGLE_API_KEY", token_tracker)
+GOOGLE_API_KEY = google_key_manager.get_current_key()
+logger.info(f"✅ Successfully loaded API key manager with {len(google_key_manager.keys)} keys")
+logger.info(f"📋 Free tier limit: {TokenTracker.FREE_TIER_LIMIT} tokens/minute per model")
 
 # MongoDB connection
 client = MongoClient("mongodb://localhost:27017/")
@@ -51,7 +143,7 @@ collection = db["raw_data"]
 financial_collection = db["financial_data"]
 summary_collection = db["canslim_summarization"]
 
-# Gemini 2.5 Flash model with random API key (quality model)
+# Gemini 2.5 Flash model with API key manager (quality model)
 quality_model = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=GOOGLE_API_KEY
@@ -62,6 +154,103 @@ cheap_model = ChatGoogleGenerativeAI(
     model="gemma-3-27b-it",
     google_api_key=GOOGLE_API_KEY
 )
+
+def reinitialize_models():
+    """Reinitialize LLM models with current API key."""
+    global quality_model, cheap_model, GOOGLE_API_KEY
+    logger.info(f"🔧 Reinitializing models with new API key...")
+    quality_model = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        google_api_key=GOOGLE_API_KEY
+    )
+    cheap_model = ChatGoogleGenerativeAI(
+        model="gemma-3-27b-it",
+        google_api_key=GOOGLE_API_KEY
+    )
+    logger.debug("✅ Models reinitialized")
+
+def safe_invoke(chain, input_data, max_retries=3, min_delay=2.0):
+    """Safely invoke a chain with automatic API key switching on quota errors.
+    
+    Args:
+        chain: The LangChain chain to invoke
+        input_data: Input data for the chain
+        max_retries: Maximum number of retry attempts
+        min_delay: Minimum delay in seconds between requests (for free tier)
+    """
+    global GOOGLE_API_KEY, quality_model, cheap_model, google_key_manager, token_tracker
+    
+    # Estimate input tokens
+    estimated_input_tokens = token_tracker.estimate_tokens(str(input_data))
+    logger.debug(f"📝 Estimated input tokens: ~{estimated_input_tokens}")
+    
+    backoff_delay = min_delay
+    
+    for attempt in range(max_retries):
+        try:
+            logger.debug(f"🚀 Attempt {attempt + 1}/{max_retries}: Invoking chain...")
+            
+            # Check current key status before invoking
+            current_usage = token_tracker.get_key_usage(google_key_manager.current_index)
+            remaining = token_tracker.FREE_TIER_LIMIT - current_usage
+            logger.debug(f"📊 Current key usage: {current_usage}/{token_tracker.FREE_TIER_LIMIT} | Remaining: {remaining}")
+            
+            # Wait if approaching quota
+            if current_usage > token_tracker.FREE_TIER_LIMIT * 0.75:
+                wait_time = token_tracker.get_wait_time(google_key_manager.current_index)
+                if wait_time > 0:
+                    logger.warning(f"⏳ Waiting {wait_time:.1f}s for quota reset...")
+                    time.sleep(wait_time + 1)
+            
+            # Invoke with delay to respect free tier limits
+            time.sleep(backoff_delay)
+            result = chain.invoke(input_data)
+            
+            # Track token usage (estimate output as 2x input)
+            estimated_output_tokens = estimated_input_tokens * 2
+            token_tracker.add_usage(google_key_manager.current_index, estimated_input_tokens + estimated_output_tokens)
+            
+            logger.debug(f"✅ Invocation successful (estimated {estimated_input_tokens + estimated_output_tokens} tokens used)")
+            return result
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            error_repr = repr(e).lower()
+            
+            logger.error(f"❌ Request failed on attempt {attempt + 1}: {type(e).__name__}")
+            logger.debug(f"📋 Error details: {str(e)[:200]}")
+            
+            # Check for quota/rate limit errors
+            quota_keywords = ['quota', 'exceeded', 'resource_exhausted', '429', '403', 
+                            'rate limit', 'permission denied', 'max tokens', 'daily limit',
+                            'out of quota']
+            is_quota_error = any(keyword in error_str for keyword in quota_keywords) or 'resourceexhausted' in error_repr
+            
+            if is_quota_error:
+                logger.warning(f"⚠️  Quota/rate limit error detected on attempt {attempt + 1}/{max_retries}")
+                
+                if attempt < max_retries - 1:
+                    try:
+                        # Switch to next key
+                        GOOGLE_API_KEY = google_key_manager.switch_key()
+                        reinitialize_models()
+                        
+                        # Exponential backoff
+                        backoff_delay = min_delay * (2 ** attempt)
+                        logger.info(f"⏳ Waiting {backoff_delay:.1f}s before retry (exponential backoff)...")
+                        time.sleep(backoff_delay)
+                        
+                        logger.info(f"🔄 Retrying with new API key (attempt {attempt + 2}/{max_retries})...")
+                        continue
+                    except RuntimeError as key_error:
+                        logger.critical(f"🚨 {key_error}")
+                        raise
+                else:
+                    logger.critical(f"🚨 All {max_retries} API key attempts exhausted")
+                    raise
+            else:
+                logger.debug(f"Non-quota error, raising immediately")
+                raise
 
 def safe_extract_value(value):
     """Enhanced value extraction with better error handling."""
@@ -553,7 +742,7 @@ def summarize_company(company_name):
             for idx, chunk in enumerate(chunks):
                 logging.info(f"🧩 Processing CANSLIM chunk {idx + 1} of {len(chunks)}")
 
-                summary = cheap_chain.invoke({
+                summary = safe_invoke(cheap_chain, {
                     "articles": chunk,
                     "financial_data": "See final synthesis for full financial analysis.",
                     "company_name": company_key
@@ -562,13 +751,13 @@ def summarize_company(company_name):
                 time.sleep(10)
             
             # Final CANSLIM synthesis
-            final_summary = quality_chain.invoke({
+            final_summary = safe_invoke(quality_chain, {
                 "articles": "\n\n---\n\n".join(chunk_summaries), 
                 "financial_data": financial_text,
                 "company_name": company_key
             }).strip()
         else:
-            final_summary = quality_chain.invoke({
+            final_summary = safe_invoke(quality_chain, {
                 "articles": articles_text, 
                 "financial_data": financial_text,
                 "company_name": company_key

@@ -14,6 +14,7 @@ import random
 def display_data_summary(company_name):
     """Display a summary of all collected data."""
     try:
+        
         logging.info(f"\n📋 Data Collection Summary for {company_name.upper()}")
     except Exception as e:
         logging.error(f"Error displaying data summary: {e}")

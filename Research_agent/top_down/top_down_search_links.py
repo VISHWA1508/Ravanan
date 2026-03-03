@@ -2,45 +2,142 @@ import os
 import json
 import re
 import random
+import logging
+import time
+from datetime import datetime
 from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
-from serpapi.google_search import GoogleSearch  # Updated import
+from serpapi.google_search import GoogleSearch
+
+# Setup detailed logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 # Load environment variables
 load_dotenv()
 
-def get_random_api_key(key_name):
-    """Get a random API key from an array stored in .env file."""
-    try:
-        key_str = os.getenv(key_name)
-        if not key_str:
-            raise ValueError(f"No {key_name} found in .env file")
+class TokenTracker:
+    """Track token usage per API key for free tier management."""
+    # Free tier limits: 15,000 tokens/min per model
+    FREE_TIER_LIMIT = 15000
+    RESET_INTERVAL = 60  # seconds
+    
+    def __init__(self):
+        self.key_usage = {}
         
-        # Remove brackets and split by comma
+    def estimate_tokens(self, text):
+        """Rough estimate of tokens based on text length (1 token ≈ 4 chars)."""
+        return max(1, len(str(text)) // 4)
+    
+    def get_key_usage(self, key_index):
+        """Get current token usage for a key."""
+        if key_index not in self.key_usage:
+            self.key_usage[key_index] = {"tokens": 0, "timestamp": datetime.now()}
+        
+        current_time = datetime.now()
+        usage_data = self.key_usage[key_index]
+        if (current_time - usage_data["timestamp"]).total_seconds() > self.RESET_INTERVAL:
+            logger.info(f"🔄 Token window reset for key #{key_index + 1}")
+            usage_data["tokens"] = 0
+            usage_data["timestamp"] = current_time
+        
+        return usage_data["tokens"]
+    
+    def add_usage(self, key_index, tokens):
+        """Add token usage for a key."""
+        if key_index not in self.key_usage:
+            self.key_usage[key_index] = {"tokens": 0, "timestamp": datetime.now()}
+        
+        self.key_usage[key_index]["tokens"] += tokens
+        current_usage = self.key_usage[key_index]["tokens"]
+        logger.debug(f"📊 Key #{key_index + 1} usage: {current_usage}/{self.FREE_TIER_LIMIT} tokens")
+        
+        if current_usage > self.FREE_TIER_LIMIT * 0.8:
+            logger.warning(f"⚠️  Key #{key_index + 1} approaching limit: {current_usage}/{self.FREE_TIER_LIMIT}")
+    
+    def is_key_available(self, key_index):
+        """Check if key is under quota."""
+        return self.get_key_usage(key_index) < self.FREE_TIER_LIMIT
+    
+    def get_wait_time(self, key_index):
+        """Calculate wait time until token window resets."""
+        if key_index not in self.key_usage:
+            return 0
+        
+        usage_data = self.key_usage[key_index]
+        elapsed = (datetime.now() - usage_data["timestamp"]).total_seconds()
+        wait = max(0, self.RESET_INTERVAL - elapsed)
+        return wait
+
+class APIKeyManager:
+    """Manages API keys and switches when quota is exceeded."""
+    def __init__(self, key_name, token_tracker=None):
+        self.key_name = key_name
+        self.keys = self._load_keys()
+        self.current_index = random.randint(0, len(self.keys) - 1)
+        self.failed_keys = set()
+        self.token_tracker = token_tracker or TokenTracker()
+        logger.info(f"✅ Loaded {len(self.keys)} {key_name} keys")
+    
+    def _load_keys(self):
+        """Load all API keys from .env file."""
+        key_str = os.getenv(self.key_name)
+        if not key_str:
+            raise ValueError(f"No {self.key_name} found in .env file")
         key_str = key_str.strip('[]')
         keys = [k.strip() for k in key_str.split(',') if k.strip()]
-        
         if not keys:
-            raise ValueError(f"No valid {key_name} keys found in .env file")
-        
-        return random.choice(keys)
-    except Exception as e:
-        print(f"Error getting random API key for {key_name}: {e}")
-        raise
-
-try:
-    SERP_API_KEY = get_random_api_key("SERPAPI_API_KEY")
-    GOOGLE_API_KEY = get_random_api_key("GOOGLE_API_KEY")
-    print("✅ Successfully loaded random API keys")
-except Exception as e:
-    print(f"❌ Error loading API keys: {e}")
-    raise
+            raise ValueError(f"No valid {self.key_name} keys found in .env file")
+        return keys
     
-# Initialize Gemini LLM with random API key
+    def get_current_key(self):
+        """Get the current API key."""
+        return self.keys[self.current_index]
+    
+    def switch_key(self):
+        """Switch to the next available API key."""
+        self.failed_keys.add(self.current_index)
+        logger.warning(f"⚠️  Key #{self.current_index + 1} marked as failed (quota exceeded)")
+        
+        available_indices = [i for i in range(len(self.keys)) 
+                           if i not in self.failed_keys and self.token_tracker.is_key_available(i)]
+        
+        if not available_indices:
+            available_indices = [i for i in range(len(self.keys)) if i not in self.failed_keys]
+            if available_indices:
+                self.current_index = available_indices[0]
+                wait_time = self.token_tracker.get_wait_time(self.current_index)
+                if wait_time > 0:
+                    logger.warning(f"⏳ All keys approaching quota. Waiting {wait_time:.1f}s for reset...")
+                    time.sleep(wait_time + 2)
+            else:
+                raise RuntimeError(f"❌ All {self.key_name} keys exhausted. Please add more keys to .env")
+        else:
+            self.current_index = random.choice(available_indices)
+        
+        logger.info(f"🔄 Switched to {self.key_name} #{self.current_index + 1}")
+        return self.get_current_key()
+
+# Initialize token tracker and API key managers
+token_tracker = TokenTracker()
+google_key_manager = APIKeyManager("GOOGLE_API_KEY", token_tracker)
+serp_key_manager = APIKeyManager("SERPAPI_API_KEY", token_tracker)
+
+SERP_API_KEY = serp_key_manager.get_current_key()
+GOOGLE_API_KEY = google_key_manager.get_current_key()
+logger.info(f"✅ Successfully loaded API key managers with {len(google_key_manager.keys)} Google keys and {len(serp_key_manager.keys)} SerpAPI keys")
+logger.info(f"📋 Free tier limit: {TokenTracker.FREE_TIER_LIMIT} tokens/minute per model")
+    
+# Initialize Gemini LLM with current API key
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",    google_api_key=GOOGLE_API_KEY
+    model="gemini-2.5-flash",
+    google_api_key=GOOGLE_API_KEY
 )
 
 # LLM prompt template
@@ -1119,17 +1216,69 @@ The Company Quantitative Analysis provides objective metrics that should be inte
 # Create the chain
 instruction_chain = instruction_prompt | llm | StrOutputParser()
 
-# Function to get structured instruction
-def get_scraping_instruction(user_prompt):
-    result = instruction_chain.invoke({"user_prompt": user_prompt})
-    print("\n🧠 Raw LLM Output:\n", result)
-    try:
-        return json.loads(result)
-    except json.JSONDecodeError:
-        match = re.search(r'\{.*\}', result, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        raise ValueError("LLM did not return valid JSON")
+# Function to get structured instruction with automatic API key switching
+def get_scraping_instruction(user_prompt, max_retries=3):
+    global llm, GOOGLE_API_KEY, google_key_manager, instruction_chain
+    import time
+    
+    for attempt in range(max_retries):
+        try:
+            result = instruction_chain.invoke({"user_prompt": user_prompt})
+            print("\n🧠 Raw LLM Output:\n", result)
+            try:
+                return json.loads(result)
+            except json.JSONDecodeError:
+                match = re.search(r'\{.*\}', result, re.DOTALL)
+                if match:
+                    return json.loads(match.group(0))
+                raise ValueError("LLM did not return valid JSON")
+        except Exception as e:
+            error_str = str(e).lower()
+            error_repr = repr(e)
+            
+            # Log detailed error for debugging
+            print(f"\n📍 Attempt {attempt + 1}/{max_retries} - Error detected:")
+            print(f"   Error Type: {type(e).__name__}")
+            print(f"   Error Message: {str(e)[:200]}")
+            
+            # Check for quota/token limit errors with broader detection
+            quota_keywords = ['quota', 'exceeded', 'token', 'rate limit', '429', '403', 
+                            'resource_exhausted', 'permission denied', 'api error',
+                            'limit', 'max tokens', 'out of quota', 'daily limit']
+            is_quota_error = any(keyword in error_str for keyword in quota_keywords)
+            
+            if is_quota_error or 'resourceexhausted' in error_repr.lower():
+                print(f"\n⚠️  API quota/rate limit error detected. Switching to next API key...")
+                
+                if attempt < max_retries - 1:
+                    try:
+                        # Switch to next API key
+                        GOOGLE_API_KEY = google_key_manager.switch_key()
+                        print(f"✅ Switched to new API key")
+                        
+                        # Add delay before retry
+                        time.sleep(1)
+                        
+                        # Re-initialize LLM with new key
+                        llm = ChatGoogleGenerativeAI(
+                            model="gemini-2.5-flash",
+                            google_api_key=GOOGLE_API_KEY,
+                            convert_system_message_to_human=True
+                        )
+                        # Recreate chain with new LLM
+                        instruction_chain = instruction_prompt | llm | StrOutputParser()
+                        print(f"🔄 Retrying with new API key (attempt {attempt + 2}/{max_retries})...")
+                        continue
+                    except RuntimeError as key_error:
+                        print(f"❌ {key_error}")
+                        raise
+                else:
+                    print(f"❌ All {max_retries} attempts exhausted")
+                    raise
+            else:
+                # For non-quota errors, just raise immediately
+                print(f"\n❌ Non-quota error, raising immediately")
+                raise
 
 # Function to run DuckDuckGo search
 def duckduckgo_search(query):
