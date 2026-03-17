@@ -195,6 +195,17 @@ def safe_invoke(chain, input_data, max_retries=3, min_delay=2.0):
             remaining = token_tracker.FREE_TIER_LIMIT - current_usage
             logger.debug(f"📊 Current key usage: {current_usage}/{token_tracker.FREE_TIER_LIMIT} | Remaining: {remaining}")
             
+            # Proactive key switching at 60% quota for better load balancing
+            if current_usage > token_tracker.FREE_TIER_LIMIT * 0.60:
+                logger.info(f"🔄 Proactively switching keys at {current_usage}/{token_tracker.FREE_TIER_LIMIT} tokens")
+                GOOGLE_API_KEY = google_key_manager.switch_key()
+                reinitialize_models()
+                logger.info(f"✅ Switched to key #{google_key_manager.current_index + 1} for load balancing")
+                wait_time = token_tracker.get_wait_time(google_key_manager.current_index)
+                if wait_time > 0:
+                    logger.warning(f"⏳ Waiting {wait_time:.1f}s for quota reset...")
+                    time.sleep(wait_time + 1)
+            
             # Wait if approaching quota
             if current_usage > token_tracker.FREE_TIER_LIMIT * 0.75:
                 wait_time = token_tracker.get_wait_time(google_key_manager.current_index)

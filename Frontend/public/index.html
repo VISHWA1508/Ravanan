@@ -314,7 +314,7 @@
       position: relative;
       z-index: 1;
       padding: 100px 48px;
-      max-width: 1200px;
+      max-width: 1400px;
       margin: 0 auto;
     }
 
@@ -348,8 +348,8 @@
 
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 24px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 32px;
     }
 
     .feature-card {
@@ -361,6 +361,7 @@
       overflow: hidden;
       transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
       backdrop-filter: blur(10px);
+      animation: pulse-glow 3s ease-in-out infinite;
     }
 
     .feature-card::before {
@@ -586,11 +587,11 @@
 
       0%,
       100% {
-        box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+        box-shadow: 0 0 10px rgba(14, 165, 233, 0.15);
       }
 
       50% {
-        box-shadow: 0 0 50px rgba(14, 165, 233, 0.7);
+        box-shadow: 0 0 25px rgba(14, 165, 233, 0.35);
       }
     }
 
@@ -616,6 +617,11 @@
 
       .features {
         padding: 60px 24px;
+      }
+
+      .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
       }
 
       .pipeline {
@@ -667,12 +673,12 @@
   <section class="hero">
     <div class="hero-eyebrow">
       <span></span>
-      Powered by Gemini AI + Gemma
+      Powered by LLM
       <span></span>
     </div>
 
     <h1 class="hero-title">
-      <span class="word-ai">AI-Powered</span><br />Research
+      <span class="word-ai">LLM-Powered</span><br />Research
     </h1>
     <p class="hero-title-sub">Intelligence Engine</p>
 
@@ -695,44 +701,6 @@
         </svg>
         See How It Works
       </a>
-    </div>
-
-    <!-- Floating Orb Visual -->
-    <div style="margin-top: 80px; position: relative; width: 340px; height: 220px;" class="floating">
-      <div style="
-        position: absolute; inset: 0;
-        background: radial-gradient(ellipse at 40% 40%, rgba(14,165,233,0.18), rgba(124,58,237,0.12), transparent 70%);
-        border-radius: 50%;
-        filter: blur(30px);
-      "></div>
-      <div style="
-        position: absolute; inset: 20px;
-        border: 1px solid rgba(14,165,233,0.2);
-        border-radius: 20px;
-        background: rgba(6,12,20,0.7);
-        backdrop-filter: blur(20px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        gap: 12px;
-        padding: 24px;
-        animation: pulse-glow 3s ease-in-out infinite;
-      ">
-        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
-          <span
-            style="background:rgba(14,165,233,0.12);border:1px solid rgba(14,165,233,0.3);color:#0ea5e9;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;">Top-Down</span>
-          <span
-            style="background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.3);color:#a78bfa;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;">Bottom-Up</span>
-          <span
-            style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;">CANSLIM</span>
-          <span
-            style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#f59e0b;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;">Financial</span>
-        </div>
-        <div style="color:#8ba5c4;font-size:0.85rem;text-align:center;line-height:1.5;">
-          Comprehensive analysis<br />in one automated pipeline
-        </div>
-      </div>
     </div>
   </section>
 

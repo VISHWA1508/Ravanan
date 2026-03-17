@@ -679,7 +679,7 @@ def fetch_and_save_financial_data(company_name, ticker):
 
 # ====================== OPTIMIZED PIPELINE FUNCTIONS ======================
 
-async def optimized_search_and_crawl(company_name, ticker=None, max_concurrent_crawls=2):
+async def optimized_search_and_crawl(company_name, ticker=None, max_concurrent_crawls=4):
     """
     Optimized version that runs searches sequentially but crawls with controlled concurrency.
     This reduces system load significantly.
@@ -687,17 +687,29 @@ async def optimized_search_and_crawl(company_name, ticker=None, max_concurrent_c
     try:
         logging.info(f"\n🔍 Starting optimized search pipeline for {company_name}...")
         
-        # Step 1: Run searches sequentially (not parallel) to reduce API load
-        logging.info("├─ Running top-down search...")
-        top_down_links = top_down_search(company_name)
-        await asyncio.sleep(1)  # Brief pause between searches
+        # Step 1: Run searches with optimized parallel execution
+        logging.info("├─ Running all searches in parallel...")
         
-        logging.info("├─ Running bottom-up search...")
-        bottom_up_links = bottom_up_search(company_name)
-        await asyncio.sleep(1)
+        # Create tasks for parallel execution
+        search_tasks = [
+            asyncio.create_task(asyncio.to_thread(top_down_search, company_name)),
+            asyncio.create_task(asyncio.to_thread(bottom_up_search, company_name)),
+            asyncio.create_task(asyncio.to_thread(canslim_search, company_name))
+        ]
         
-        logging.info("└─ Running CANSLIM search...")
-        canslim_links = canslim_search(company_name)
+        # Wait for all searches to complete
+        top_down_links, bottom_up_links, canslim_links = await asyncio.gather(*search_tasks, return_exceptions=True)
+        
+        # Handle exceptions
+        if isinstance(top_down_links, Exception):
+            logging.error(f"⚠️ Top-down search failed: {top_down_links}")
+            top_down_links = []
+        if isinstance(bottom_up_links, Exception):
+            logging.error(f"⚠️ Bottom-up search failed: {bottom_up_links}")
+            bottom_up_links = []
+        if isinstance(canslim_links, Exception):
+            logging.error(f"⚠️ CANSLIM search failed: {canslim_links}")
+            canslim_links = []
         
         # Step 2: Combine and deduplicate links
         all_links = list(set(top_down_links + bottom_up_links + canslim_links))
@@ -707,7 +719,7 @@ async def optimized_search_and_crawl(company_name, ticker=None, max_concurrent_c
         if all_links:
             url_company_pairs = [(link, company_name) for link in all_links]
             
-            # Use optimized batch processing with low concurrency
+            # Use optimized batch processing with higher concurrency for speed
             results = await process_links_batch(
                 url_company_pairs, 
                 max_concurrent=max_concurrent_crawls
@@ -721,20 +733,26 @@ async def optimized_search_and_crawl(company_name, ticker=None, max_concurrent_c
         else:
             logging.warning("⚠️ No links found to process")
         
-        # Step 4: Fetch financial data (run separately to avoid resource conflicts)
+        # Step 4: Fetch financial data in parallel with other operations
         if ticker:
             logging.info(f"\n💼 Fetching financial data for {ticker}...")
-            await asyncio.sleep(2)  # Give system time to cool down
             
-            # Run financial data fetch in executor to prevent blocking
-            success = await asyncio.get_event_loop().run_in_executor(
-                None, fetch_and_save_financial_data, company_name, ticker
+            # Run financial data fetch in parallel with a small delay
+            financial_task = asyncio.create_task(
+                asyncio.get_event_loop().run_in_executor(
+                    None, fetch_and_save_financial_data, company_name, ticker
+                )
             )
             
-            if success:
-                logging.info("🎯 Financial data extraction completed successfully!")
-            else:
-                logging.warning("⚠️ Financial data fetching failed, but continuing...")
+            # Wait for financial data with timeout
+            try:
+                success = await asyncio.wait_for(financial_task, timeout=300)  # 5 minute timeout
+                if success:
+                    logging.info("🎯 Financial data extraction completed successfully!")
+                else:
+                    logging.warning("⚠️ Financial data fetching failed, but continuing...")
+            except asyncio.TimeoutError:
+                logging.warning("⚠️ Financial data fetching timed out, but continuing...")
         else:
             logging.info("ℹ️ No ticker provided, skipping financial data fetch")
             
@@ -822,8 +840,8 @@ if __name__ == "__main__":
     company = os.environ.get("RAVANAN_COMPANY", "TCS")
     ticker = os.environ.get("RAVANAN_TICKER", "TCS.NS")
 
-    # Resource-friendly settings
-    MAX_CONCURRENT_CRAWLS = 2  # Very conservative - adjust based on your system
+    # Resource-friendly settings - increased for better performance
+    MAX_CONCURRENT_CRAWLS = 6  # Increased from 2 for faster execution
     
     try:
         logging.info("🚀 Starting optimized research pipeline...")

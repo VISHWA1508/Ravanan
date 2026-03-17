@@ -30,6 +30,16 @@ class TokenTracker:
     
     def __init__(self):
         self.key_usage = {}
+        self._last_cleanup = datetime.now()
+        
+    def _cleanup_old_usage(self):
+        """Clean up old usage data to prevent memory buildup."""
+        current_time = datetime.now()
+        if (current_time - self._last_cleanup).total_seconds() > 300:  # Cleanup every 5 minutes
+            for key_index in list(self.key_usage.keys()):
+                if (current_time - self.key_usage[key_index]["timestamp"]).total_seconds() > self.RESET_INTERVAL * 2:
+                    del self.key_usage[key_index]
+            self._last_cleanup = current_time
         
     def estimate_tokens(self, text):
         """Rough estimate of tokens based on text length (1 token ≈ 4 chars)."""
@@ -37,6 +47,8 @@ class TokenTracker:
     
     def get_key_usage(self, key_index):
         """Get current token usage for a key."""
+        self._cleanup_old_usage()  # Prevent memory buildup
+        
         if key_index not in self.key_usage:
             self.key_usage[key_index] = {"tokens": 0, "timestamp": datetime.now()}
         
@@ -97,28 +109,39 @@ class APIKeyManager:
         return keys
     
     def get_current_key(self):
-        """Get the current API key."""
+        """Get the current API key, checking if it needs to be reset."""
+        # Reset failed keys that are now available
+        if self.current_index in self.failed_keys:
+            if self.token_tracker.is_key_available(self.current_index):
+                self.failed_keys.remove(self.current_index)
+                logger.info(f"✅ Key #{self.current_index + 1} is now available again")
+        
         return self.keys[self.current_index]
     
     def switch_key(self):
-        """Switch to the next available API key."""
+        """Switch to the next available API key with optimized selection."""
         self.failed_keys.add(self.current_index)
         logger.warning(f"⚠️  Key #{self.current_index + 1} marked as failed (quota exceeded)")
         
+        # Find all available keys that are not failed and under quota
         available_indices = [i for i in range(len(self.keys)) 
                            if i not in self.failed_keys and self.token_tracker.is_key_available(i)]
         
         if not available_indices:
-            available_indices = [i for i in range(len(self.keys)) if i not in self.failed_keys]
-            if available_indices:
-                self.current_index = available_indices[0]
+            # All keys are at quota - find the one that resets soonest
+            all_indices = [i for i in range(len(self.keys)) if i not in self.failed_keys]
+            if all_indices:
+                # Sort by wait time (shortest first)
+                all_indices.sort(key=lambda i: self.token_tracker.get_wait_time(i))
+                self.current_index = all_indices[0]
                 wait_time = self.token_tracker.get_wait_time(self.current_index)
                 if wait_time > 0:
-                    logger.warning(f"⏳ All keys approaching quota. Waiting {wait_time:.1f}s for reset...")
-                    time.sleep(wait_time + 2)
+                    logger.warning(f"⏳ All keys at quota. Waiting {wait_time:.1f}s for fastest reset...")
+                    time.sleep(wait_time + 1)  # Small buffer
             else:
                 raise RuntimeError(f"❌ All {self.key_name} keys exhausted. Please add more keys to .env")
         else:
+            # Randomly select from available keys for load balancing
             self.current_index = random.choice(available_indices)
         
         logger.info(f"🔄 Switched to {self.key_name} #{self.current_index + 1}")

@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class ResourceOptimizedCrawler:
-    def __init__(self, max_concurrent=2, delay_between_requests=1.5, timeout=15):
+    def __init__(self, max_concurrent=6, delay_between_requests=0.5, timeout=10):
         """
         Initialize crawler with resource optimization settings.
         
