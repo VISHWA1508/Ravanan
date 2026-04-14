@@ -817,8 +817,10 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # Company and ticker configuration
-    company = "TCS"
-    ticker = "TCS.NS"
+    # Prefer values passed by frontend server (/api/run), fallback to defaults for local manual runs.
+    company = (os.getenv("RAVANAN_COMPANY") or "TCS").strip()
+    ticker = (os.getenv("RAVANAN_TICKER") or "TCS.NS").strip().upper()
+    logging.info(f"🎯 Pipeline target: company='{company}', ticker='{ticker}'")
 
     # Resource-friendly settings
     MAX_CONCURRENT_CRAWLS = 2  # Very conservative - adjust based on your system
